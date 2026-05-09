@@ -2,6 +2,11 @@
 import os
 import cv2
 import numpy as np
+import json
+import os as _os
+import matplotlib.font_manager as _fm
+import matplotlib.pyplot as _plt
+from frontend.data_logger import DataLogger
 from core.detector import CrowdDetector
 from hardware.drone_controller import DroneCamera
 from core.grid_calculator import GridCalculator
@@ -12,10 +17,17 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 
 def main():
     # 1. 모듈 초기화
-    video_path = os.path.join(ROOT, 'test_video1.mp4')
+    video_path = os.path.join(ROOT, 'data/test_video1.mp4')
     model_path = os.path.join(ROOT, 'weights', 'yolov8s.pt')
 
     drone = DroneCamera(video_path)
+
+    # Tello 실시간 모드 (드론 가져오면 이것만 바꾸면 됨)
+    # drone = DroneCamera('tello')
+
+    # 웹캠 모드 (테스트용)
+    # drone = DroneCamera(0)
+
     detector = CrowdDetector(model_path)
     calculator = GridCalculator()
 

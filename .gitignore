@@ -1,3 +1,5 @@
 .idea/
 *.mp4
 *.pt
+# Ignore generated outputs and presentations
+outputs/

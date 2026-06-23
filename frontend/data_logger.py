@@ -5,22 +5,29 @@
 import sqlite3
 import json
 import os
+import math
 from datetime import datetime
 
 
 class DataLogger:
-    def __init__(self, db_path='data/crowdflow.db'):
+    def __init__(self, db_path='data/crowdflow.db', verbose=True):
         """
         db_path: SQLite DB 파일 경로
         ★ SQLite는 별도 서버 불필요 — 파일 1개가 곧 DB
         """
-        # 폴더가 없으면 생성
-        os.makedirs(os.path.dirname(db_path), exist_ok=True)
+        directory = os.path.dirname(db_path)
+        if directory:
+            os.makedirs(directory, exist_ok=True)
 
-        self.conn = sqlite3.connect(db_path)
+        self.conn = sqlite3.connect(db_path, timeout=5)
+        self.conn.execute("PRAGMA journal_mode=WAL")
+        self.conn.execute("PRAGMA foreign_keys=ON")
+        self.conn.execute("PRAGMA busy_timeout=5000")
         self.cursor = self.conn.cursor()
+        self.verbose = verbose
         self._create_tables()
-        print(f"[DB] 연결 완료: {db_path}")
+        if self.verbose:
+            print(f"[DB] 연결 완료: {db_path}")
 
     def _create_tables(self):
         """DB 테이블 생성 (최초 1회만 실행됨)"""
@@ -36,7 +43,13 @@ class DataLogger:
                 grid_data TEXT,
                 level_data TEXT,
                 count_data TEXT,
-                conf_data TEXT
+                conf_data TEXT,
+                frame_number INTEGER,
+                ignored_count INTEGER DEFAULT 0,
+                inference_ms REAL,
+                model_name TEXT,
+                model_type TEXT,
+                calibration_mode TEXT
             )
         """)
 
@@ -49,6 +62,7 @@ class DataLogger:
                 cell_col INTEGER,
                 avg_conf REAL,
                 detected_count INTEGER,
+                alert_type TEXT,
                 message TEXT,
                 FOREIGN KEY (frame_id) REFERENCES frames(frame_id)
             )
@@ -68,7 +82,22 @@ class DataLogger:
             )
         """)
 
+        self._ensure_column("frames", "frame_number", "INTEGER")
+        self._ensure_column("frames", "ignored_count", "INTEGER DEFAULT 0")
+        self._ensure_column("frames", "inference_ms", "REAL")
+        self._ensure_column("frames", "model_name", "TEXT")
+        self._ensure_column("frames", "model_type", "TEXT")
+        self._ensure_column("frames", "calibration_mode", "TEXT")
+        self._ensure_column("alerts", "alert_type", "TEXT")
         self.conn.commit()
+
+    def _ensure_column(self, table_name, column_name, definition):
+        self.cursor.execute(f"PRAGMA table_info({table_name})")
+        columns = {row[1] for row in self.cursor.fetchall()}
+        if column_name not in columns:
+            self.cursor.execute(
+                f"ALTER TABLE {table_name} ADD COLUMN {column_name} {definition}"
+            )
 
     def log_frame(self, grid_result):
         """
@@ -77,11 +106,15 @@ class DataLogger:
         입력: grid_result dict (두호의 grid_calculator.py 출력)
         ★ NumPy 배열은 JSON으로 직접 변환 안 됨 → .tolist()로 변환
         """
+        metadata = grid_result.get("metadata", {})
+
         self.cursor.execute("""
             INSERT INTO frames
             (timestamp, total_detected, max_density, alert_count,
-             grid_data, level_data, count_data, conf_data)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+             grid_data, level_data, count_data, conf_data,
+             frame_number, ignored_count, inference_ms,
+             model_name, model_type, calibration_mode)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             grid_result['timestamp'],
             int(grid_result['count'].sum()),
@@ -90,7 +123,13 @@ class DataLogger:
             json.dumps(grid_result['grid'].tolist()),
             json.dumps(grid_result['level'].tolist()),
             json.dumps(grid_result['count'].tolist()),
-            json.dumps(grid_result['avg_conf'].tolist())
+            json.dumps(grid_result['avg_conf'].tolist()),
+            metadata.get("frame_number"),
+            int(grid_result.get("ignored_count", 0)),
+            metadata.get("inference_ms"),
+            metadata.get("model_name"),
+            metadata.get("model_type"),
+            metadata.get("calibration_mode"),
         ))
 
         frame_id = self.cursor.lastrowid
@@ -99,12 +138,14 @@ class DataLogger:
         for alert in grid_result.get('alerts', []):
             self.cursor.execute("""
                 INSERT INTO alerts
-                (frame_id, cell_row, cell_col, avg_conf, detected_count, message)
-                VALUES (?, ?, ?, ?, ?, ?)
+                (frame_id, cell_row, cell_col, avg_conf,
+                 detected_count, alert_type, message)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
             """, (
                 frame_id,
                 alert['row'], alert['col'],
                 alert['avg_conf'], alert['count'],
+                alert.get("type", "unknown"),
                 alert['message']
             ))
 
@@ -158,13 +199,59 @@ class DataLogger:
         self.cursor.execute("SELECT MAX(max_density) FROM frames")
         peak_density = self.cursor.fetchone()[0] or 0
 
+        self.cursor.execute("SELECT SUM(ignored_count) FROM frames")
+        ignored_detections = self.cursor.fetchone()[0] or 0
+
+        self.cursor.execute(
+            "SELECT AVG(inference_ms) FROM frames WHERE inference_ms IS NOT NULL"
+        )
+        avg_inference_ms = self.cursor.fetchone()[0] or 0
+
         return {
             'total_frames': total_frames,
             'total_alerts': total_alerts,
-            'peak_density': peak_density
+            'peak_density': peak_density,
+            'ignored_detections': ignored_detections,
+            'avg_inference_ms': avg_inference_ms,
+        }
+
+    def get_experiment_metrics(self):
+        self.cursor.execute("""
+            SELECT actual_count, estimated_count, density_gt, density_est
+            FROM experiments
+        """)
+        rows = self.cursor.fetchall()
+        if not rows:
+            return {
+                "sample_count": 0,
+                "count_mae": 0.0,
+                "count_rmse": 0.0,
+                "density_mae": 0.0,
+                "density_rmse": 0.0,
+            }
+
+        count_errors = [estimated - actual for actual, estimated, _, _ in rows]
+        density_errors = [
+            estimated_density - actual_density
+            for _, _, actual_density, estimated_density in rows
+        ]
+
+        return {
+            "sample_count": len(rows),
+            "count_mae": sum(abs(error) for error in count_errors) / len(rows),
+            "count_rmse": math.sqrt(
+                sum(error ** 2 for error in count_errors) / len(rows)
+            ),
+            "density_mae": (
+                sum(abs(error) for error in density_errors) / len(rows)
+            ),
+            "density_rmse": math.sqrt(
+                sum(error ** 2 for error in density_errors) / len(rows)
+            ),
         }
 
     def close(self):
         """DB 연결 종료"""
         self.conn.close()
-        print("[DB] 연결 종료")
+        if self.verbose:
+            print("[DB] 연결 종료")

@@ -2,13 +2,25 @@
 # 두호의 grid_result를 받아서 히트맵 이미지를 생성하는 모듈
 # 김대현의 dashboard.py에서 이 함수를 호출하여 화면에 표시
 
-import numpy as np
 import matplotlib
 matplotlib.use('Agg')  # Streamlit 호환 (GUI 백엔드 비활성화)
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
-from matplotlib.colors import LinearSegmentedColormap
+from matplotlib import font_manager
 import io
+import os
+
+
+def _configure_korean_font():
+    font_path = r"C:\Windows\Fonts\malgun.ttf"
+    if os.path.exists(font_path):
+        font_manager.fontManager.addfont(font_path)
+        font_name = font_manager.FontProperties(fname=font_path).get_name()
+        plt.rcParams['font.family'] = font_name
+    plt.rcParams['axes.unicode_minus'] = False
+
+
+_configure_korean_font()
 
 
 class HeatmapRenderer:
@@ -43,15 +55,18 @@ class HeatmapRenderer:
         density = grid_result['grid']    # (rows, cols) 밀집도
         level = grid_result['level']     # (rows, cols) Level 1~5
         count = grid_result['count']     # (rows, cols) 인원수
-        avg_conf = grid_result['avg_conf']
         alerts = grid_result.get('alerts', [])
+        risk_clusters = grid_result.get('risk_clusters', [])
+        grid_size = float(grid_result.get("grid_size", self.grid_size))
+        area_width = float(grid_result.get("area_width", self.area_width))
+        area_height = float(grid_result.get("area_height", self.area_height))
 
         rows, cols = density.shape
 
         # ─── Figure 생성 ───
         fig, ax = plt.subplots(1, 1, figsize=(8, 6))
-        ax.set_xlim(0, self.area_width)
-        ax.set_ylim(0, self.area_height)
+        ax.set_xlim(0, area_width)
+        ax.set_ylim(0, area_height)
         ax.set_aspect('equal')
         ax.set_xlabel('X (m)', fontsize=11)
         ax.set_ylabel('Y (m)', fontsize=11)
@@ -65,14 +80,14 @@ class HeatmapRenderer:
 
         for r in range(rows):
             for c in range(cols):
-                x = c * self.grid_size
-                y = r * self.grid_size
+                x = c * grid_size
+                y = r * grid_size
                 lv = int(level[r, c])
                 color = self.level_colors.get(lv, '#CCCCCC')
 
                 # 격자 사각형 그리기
                 rect = patches.Rectangle(
-                    (x, y), self.grid_size, self.grid_size,
+                    (x, y), grid_size, grid_size,
                     linewidth=1, edgecolor='white', facecolor=color, alpha=0.8
                 )
                 ax.add_patch(rect)
@@ -82,7 +97,7 @@ class HeatmapRenderer:
                 cnt = int(count[r, c])
                 if cnt > 0:
                     text_color = 'white' if lv >= 3 else 'black'
-                    ax.text(x + self.grid_size/2, y + self.grid_size/2,
+                    ax.text(x + grid_size/2, y + grid_size/2,
                             f'{d:.1f}\n({cnt}명)',
                             ha='center', va='center',
                             fontsize=8, fontweight='bold', color=text_color)
@@ -90,11 +105,13 @@ class HeatmapRenderer:
                 # 경고 셀에 빗금 표시
                 if (r, c) in alert_cells:
                     rect2 = patches.Rectangle(
-                        (x, y), self.grid_size, self.grid_size,
+                        (x, y), grid_size, grid_size,
                         linewidth=2, edgecolor='red', facecolor='none',
                         linestyle='--', hatch='///'
                     )
                     ax.add_patch(rect2)
+
+        self._draw_risk_clusters(ax, risk_clusters)
 
         # ─── 범례 ───
         legend_elements = []
@@ -108,6 +125,53 @@ class HeatmapRenderer:
 
         plt.tight_layout()
         return fig
+
+    def _draw_risk_clusters(self, ax, risk_clusters):
+        cluster_colors = {
+            3: '#E67E22',
+            4: '#E74C3C',
+            5: '#8E44AD',
+        }
+
+        for cluster in risk_clusters:
+            bbox = cluster.get('bbox_m', {})
+            x1 = float(bbox.get('x1', 0.0))
+            y1 = float(bbox.get('y1', 0.0))
+            x2 = float(bbox.get('x2', x1))
+            y2 = float(bbox.get('y2', y1))
+            width = x2 - x1
+            height = y2 - y1
+            if width <= 0 or height <= 0:
+                continue
+
+            max_level = int(cluster.get('max_level', 3))
+            color = cluster_colors.get(max_level, '#E67E22')
+            rect = patches.Rectangle(
+                (x1, y1), width, height,
+                linewidth=3, edgecolor=color, facecolor=color,
+                alpha=0.18, linestyle='-', zorder=5
+            )
+            ax.add_patch(rect)
+
+            outline = patches.Rectangle(
+                (x1, y1), width, height,
+                linewidth=3, edgecolor=color, facecolor='none',
+                linestyle='-', zorder=6
+            )
+            ax.add_patch(outline)
+
+            label = (
+                f"위험구역 {cluster.get('id')} | "
+                f"{cluster.get('max_density', 0):.1f}인/m² | "
+                f"{cluster.get('total_count', 0)}명"
+            )
+            ax.text(
+                x1 + 0.1, y1 + 0.25, label,
+                ha='left', va='top',
+                fontsize=8, fontweight='bold', color='white',
+                bbox={'facecolor': color, 'alpha': 0.9, 'pad': 2, 'edgecolor': 'none'},
+                zorder=7,
+            )
 
     def render_to_bytes(self, grid_result):
         """

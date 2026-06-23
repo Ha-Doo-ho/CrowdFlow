@@ -1,5 +1,19 @@
 .idea/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+tmp/
 *.mp4
 *.pt
+*.db
+*.db-shm
+*.db-wal
+data/latest_result.json
+data/latest_result.json.tmp
+data/model_benchmark.json
+data/model_benchmark.json.tmp
+bin/
+obj/
+*.csproj.user
 # Ignore generated outputs and presentations
 outputs/

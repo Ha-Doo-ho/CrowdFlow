@@ -1,0 +1,15 @@
+{
+  "source": "data/test_video10.mp4",
+  "model_path": "weights/rtdetr_l.pt",
+  "model_type": "rtdetr",
+  "imgsz": 1280,
+  "detection_confidence": 0.27,
+  "person_classes": null,
+  "analyze_every": 3,
+  "grid_size": 2.0,
+  "area_width": 10.0,
+  "area_height": 10.0,
+  "low_confidence_threshold": 0.4,
+  "low_confidence_min_level": 2,
+  "calibration_path": null
+}

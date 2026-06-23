@@ -10,8 +10,10 @@ import streamlit as st
 import numpy as np
 import json
 import os
+import sqlite3
 import sys
 import time
+from datetime import datetime
 
 # 프로젝트 루트를 import 경로에 추가
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -30,7 +32,7 @@ def load_latest_result(json_path):
     if not os.path.exists(json_path):
         return None
     try:
-        with open(json_path, 'r') as f:
+        with open(json_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
         # JSON → NumPy 변환
         data['grid'] = np.array(data['grid'])
@@ -78,17 +80,11 @@ def main():
         | 🟣 5 | 긴급 | > 8인/m² |
         """)
 
-        # DB 통계 (있으면)
-        if os.path.exists(db_path):
-            try:
-                logger = DataLogger(db_path)
-                stats = logger.get_stats()
-                st.metric("총 분석 프레임", stats['total_frames'])
-                st.metric("총 경고 발생", stats['total_alerts'])
-                st.metric("최대 밀집도", f"{stats['peak_density']:.2f} 인/m²")
-                logger.close()
-            except Exception:
-                st.info("DB 연결 대기 중...")
+        total_frames_metric = st.empty()
+        total_alerts_metric = st.empty()
+        peak_density_metric = st.empty()
+        avg_inference_metric = st.empty()
+        ignored_metric = st.empty()
 
     # ─── 메인 화면 (좌측) ───
     with col_main:
@@ -107,12 +103,45 @@ def main():
     # ─── 실시간 갱신 루프 ───
     st.info("🔄 main.py 실행 후 자동으로 데이터가 표시됩니다. (1초 간격 갱신)")
 
-    density_history = []  # 추세 차트용
+    density_history = []
+    last_timestamp = None
+    stats_logger = None
 
     while True:
         result = load_latest_result(json_path)
 
         if result is not None:
+            if os.path.exists(db_path):
+                try:
+                    if stats_logger is None:
+                        stats_logger = DataLogger(db_path, verbose=False)
+                    stats = stats_logger.get_stats()
+                    total_frames_metric.metric(
+                        "총 분석 프레임",
+                        stats["total_frames"],
+                    )
+                    total_alerts_metric.metric(
+                        "총 경고 발생",
+                        stats["total_alerts"],
+                    )
+                    peak_density_metric.metric(
+                        "최대 밀집도",
+                        f"{stats['peak_density']:.2f} 인/m²",
+                    )
+                    avg_inference_metric.metric(
+                        "평균 추론시간",
+                        f"{stats['avg_inference_ms']:.1f} ms",
+                    )
+                    ignored_metric.metric(
+                        "영역 밖 제외 탐지",
+                        stats["ignored_detections"],
+                    )
+                except sqlite3.Error:
+                    if stats_logger is not None:
+                        stats_logger.close()
+                        stats_logger = None
+                    ignored_metric.info("DB 연결 대기 중...")
+
             # ─── 히트맵 표시 ───
             with heatmap_placeholder.container():
                 fig = renderer.render(result)
@@ -123,7 +152,7 @@ def main():
             # ─── 경보 표시 ───
             with alert_placeholder.container():
                 alerts = result.get('alerts', [])
-                max_level = int(result['level'].max())
+                max_level = int(result.get("max_level", result['level'].max()))
 
                 if max_level >= 4:
                     st.error(f"🚨 긴급 경보! 최대 밀집도: {result['max_density']:.2f}인/m² | 경고 {len(alerts)}건")
@@ -142,14 +171,41 @@ def main():
             # ─── 상세 정보 ───
             with info_placeholder.container():
                 total = int(result['count'].sum())
+                metadata = result.get("metadata", {})
+                calibration_mode = metadata.get("calibration_mode", "unknown")
+                model_name = metadata.get("model_name", "unknown")
+                inference_ms = metadata.get("inference_ms", 0)
+                ignored_count = int(result.get("ignored_count", 0))
+
                 st.markdown(f"**시각:** {result['timestamp']} | "
                             f"**총 탐지:** {total}명 | "
                             f"**최대 밀집도:** {result['max_density']:.2f}인/m²")
+                st.markdown(
+                    f"**모델:** {model_name} | "
+                    f"**추론:** {inference_ms:.1f}ms | "
+                    f"**영역 밖 제외:** {ignored_count}건"
+                )
+
+                if calibration_mode == "full_frame_fallback":
+                    st.warning(
+                        "임시 전체 프레임 매핑을 사용 중입니다. "
+                        "현재 밀집도는 실측 검증값이 아닙니다."
+                    )
+
+                try:
+                    result_time = datetime.fromisoformat(result["timestamp"])
+                    age_seconds = (datetime.now() - result_time).total_seconds()
+                    if age_seconds > 5:
+                        st.warning(f"최근 분석 결과가 {age_seconds:.0f}초 전 데이터입니다.")
+                except (TypeError, ValueError):
+                    pass
 
             # ─── 추세 차트 ───
-            density_history.append(result['max_density'])
-            if len(density_history) > 30:
-                density_history.pop(0)
+            if result["timestamp"] != last_timestamp:
+                density_history.append(result['max_density'])
+                last_timestamp = result["timestamp"]
+                if len(density_history) > 30:
+                    density_history.pop(0)
 
             with chart_placeholder.container():
                 st.subheader("📈 밀집도 추세 (최근 30 프레임)")

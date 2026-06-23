@@ -1,69 +1,129 @@
-# main.py (하두호 담당 — 전체 연결)
 import os
-import cv2
-import numpy as np
-import json
-from frontend.data_logger import DataLogger
-from core.detector import CrowdDetector
-from hardware.drone_controller import DroneCamera
-from core.grid_calculator import GridCalculator
+import time
+from pathlib import Path
 
-# 프로젝트 루트 경로 (어디서 실행하든 정확한 경로 보장)
+import cv2
+import json
+import numpy as np
+
+from core.detector import CrowdDetector
+from core.grid_calculator import GridCalculator
+from core.result_publisher import save_latest_result
+from core.risk_clusterer import find_risk_clusters
+from core.settings import AppSettings
+from frontend.data_logger import DataLogger
+from hardware.drone_controller import DroneCamera
+
 ROOT = os.path.dirname(os.path.abspath(__file__))
+CONFIG_PATH = os.path.join(ROOT, "config", "app_config.json")
 DATA_DIR = os.path.join(ROOT, 'data')
 LATEST_RESULT_PATH = os.path.join(DATA_DIR, 'latest_result.json')
 DB_PATH = os.path.join(DATA_DIR, 'crowdflow.db')
 
 
-def _to_jsonable(value):
-    if isinstance(value, np.ndarray):
-        return value.tolist()
-    if isinstance(value, np.integer):
-        return int(value)
-    if isinstance(value, np.floating):
-        return float(value)
-    if isinstance(value, dict):
-        return {key: _to_jsonable(val) for key, val in value.items()}
-    if isinstance(value, (list, tuple)):
-        return [_to_jsonable(item) for item in value]
-    return value
-
-
-def save_latest_result(grid_result, json_path=LATEST_RESULT_PATH):
-    os.makedirs(os.path.dirname(json_path), exist_ok=True)
-    tmp_path = f"{json_path}.tmp"
-    with open(tmp_path, 'w', encoding='utf-8') as f:
-        json.dump(_to_jsonable(grid_result), f, ensure_ascii=False)
-    os.replace(tmp_path, json_path)
-
-
 def publish_result(grid_result, logger):
-    save_latest_result(grid_result) #data/latest_result.json 저장
-    logger.log_frame(grid_result)   #data/crowdFlow.db (SQLite 기록)
-#대시보드가 최신 결과를 읽을 수 있음.
-#실험 후 DB 기반 평가 가능.
+    save_latest_result(grid_result, LATEST_RESULT_PATH)
+    logger.log_frame(grid_result)
+
+
+def resolve_path(path_value):
+    path = Path(path_value)
+    return str(path if path.is_absolute() else Path(ROOT) / path)
+
+
+def resolve_source(source):
+    if isinstance(source, int) or source == "tello":
+        return source
+    return resolve_path(source)
+
+
+def configure_homography(calculator, frame, calibration_path):
+    height, width = frame.shape[:2]
+
+    if calibration_path:
+        resolved_path = resolve_path(calibration_path)
+        with open(resolved_path, "r", encoding="utf-8") as calibration_file:
+            calibration = json.load(calibration_file)
+        calculator.set_homography(
+            calibration["src_points"],
+            calibration["dst_points"],
+        )
+        print(f"[Calibration] 실측 좌표 사용: {resolved_path}")
+        return "measured"
+
+    # 캘리브레이션 전 개발용 fallback이다. 실제 밀집도 검증에는 사용하지 않는다.
+    src = np.array(
+        [[0, 0], [width, 0], [0, height], [width, height]],
+        dtype=np.float32,
+    )
+    dst = np.array(
+        [
+            [0, 0],
+            [calculator.area_width, 0],
+            [0, calculator.area_height],
+            [calculator.area_width, calculator.area_height],
+        ],
+        dtype=np.float32,
+    )
+    calculator.set_homography(src, dst)
+    print("[Calibration] 임시 전체 프레임 매핑 사용 — 실측 결과로 해석하면 안 됩니다.")
+    return "full_frame_fallback"
+
+
+def analyze_frame(
+    detector,
+    calculator,
+    frame,
+    frame_number,
+    source_name,
+    calibration_mode,
+):
+    started_at = time.perf_counter()
+    detections, raw_result = detector.detect(frame)
+    inference_ms = (time.perf_counter() - started_at) * 1000
+
+    grid_result = calculator.calculate(detections)
+    grid_result["risk_clusters"] = find_risk_clusters(grid_result)
+    grid_result["metadata"] = {
+        "frame_number": frame_number,
+        "source": source_name,
+        "model_name": Path(detector.model_path).name,
+        "model_type": detector.model_type,
+        "imgsz": detector.imgsz,
+        "detection_confidence": detector.conf,
+        "person_classes": detector.person_classes,
+        "inference_ms": round(inference_ms, 2),
+        "calibration_mode": calibration_mode,
+    }
+    return grid_result, raw_result
+
 
 def main():
-    # 1. 모듈 초기화
-    video_path = os.path.join(ROOT, 'data/test_video2.mp4')
-    model_path = os.path.join(ROOT, 'weights', 'yolo11l_crowdflow.pt')
+    settings = AppSettings.load(CONFIG_PATH)
+    source = resolve_source(settings.source)
+    model_path = resolve_path(settings.model_path)
 
-    drone = DroneCamera(video_path)
-
-    # Tello 실시간 모드 (드론 가져오면 이것만 바꾸면 됨)
-    # drone = DroneCamera('tello')
-
-    # 웹캠 모드 (테스트용)
-    # drone = DroneCamera(0)
-
+    drone = None
     logger = None
 
     try:
-        detector = CrowdDetector(model_path)
-        calculator = GridCalculator()
+        drone = DroneCamera(source)
+        detector = CrowdDetector(
+            model_path=model_path,
+            imgsz=settings.imgsz,
+            conf=settings.detection_confidence,
+            person_classes=settings.person_classes,
+            model_type=settings.model_type,
+        )
+        calculator = GridCalculator(
+            grid_size=settings.grid_size,
+            area_width=settings.area_width,
+            area_height=settings.area_height,
+            conf_threshold=settings.low_confidence_threshold,
+            low_confidence_min_level=settings.low_confidence_min_level,
+        )
         logger = DataLogger(DB_PATH)
 
-        # 임시 Homography: 영상 전체를 10m×10m로 매핑
         test_frame = drone.get_frame()
         if test_frame is None:
             print("첫 프레임을 가져오지 못했습니다. 영상 경로나 스트리밍 상태를 확인하세요.")
@@ -71,51 +131,62 @@ def main():
 
         h, w = test_frame.shape[:2]
         print(f"영상 해상도: {w} x {h}")
-
-        # 2. (선택) 캘리브레이션 — 실제 콘 좌표 확보 후 교체
-        src = np.array([[0,0],[w,0],[0,h],[w,h]], dtype=np.float32)
-        dst = np.array([[0,0],[10,0],[0,10],[10,10]], dtype=np.float32)
-        calculator.set_homography(src, dst)
+        calibration_mode = configure_homography(
+            calculator,
+            test_frame,
+            settings.calibration_path,
+        )
 
         print("=" * 50)
         print("CrowdFlow 관제 시스템 실행중... (종료: q키)")
         print("=" * 50)
 
-        frame_count = 1 #첫 프레임은 이미 읽었으므로 1부터
-        ANALYZE_EVERY = 3 # 3프레임당 1회 분석 (GPU 부하 관리)
+        frame_count = 1
 
-        #첫 프레임 분석
-        detections, raw_result = detector.detect(test_frame)
-        grid_result = calculator.calculate(detections)
+        grid_result, raw_result = analyze_frame(
+            detector,
+            calculator,
+            test_frame,
+            frame_count,
+            str(settings.source),
+            calibration_mode,
+        )
         publish_result(grid_result, logger)
         total = int(grid_result['count'].sum())
         max_d = grid_result['max_density']
+        inference_ms = grid_result["metadata"]["inference_ms"]
         print(f"[Frame {frame_count:>5}] 탐지: {total:>3}명 | "
-              f"최대 밀집도: {max_d:.2f}인/m²")
+              f"최대 밀집도: {max_d:.2f}인/m² | 추론: {inference_ms:.1f}ms")
         annotated = raw_result.plot()
         cv2.imshow("CrowdFlow AI Detection", annotated)
 
         while True:
-            #1. 드론에게 지금 사진 1장만 달라고 요청 (손성 모듈 호출)
             frame = drone.get_frame()
             if frame is None:
                 break
 
             frame_count += 1
 
-            if frame_count % ANALYZE_EVERY == 0:
-                # 2. AI 분석 수행
-                # 유택이 훈련시킨 모델을 통해 사진에서 사람을 찾음.
-                detections, raw_result = detector.detect(frame)
-                grid_result = calculator.calculate(detections) # 3. 내가 만든 모듈을 호출. grid_calculator.py로 Grid로 위험도 호출
+            if frame_count % settings.analyze_every == 0:
+                grid_result, raw_result = analyze_frame(
+                    detector,
+                    calculator,
+                    frame,
+                    frame_count,
+                    str(settings.source),
+                    calibration_mode,
+                )
                 publish_result(grid_result, logger)
 
-                # 콘솔 출력 (개발 중 확인용)
                 total = int(grid_result['count'].sum())
                 max_d = grid_result['max_density']
+                ignored = grid_result["ignored_count"]
+                inference_ms = grid_result["metadata"]["inference_ms"]
                 print(f"[Frame {frame_count:>5}] "
                       f"탐지: {total:>3}명 | "
-                      f"최대 밀집도: {max_d:.2f}인/m²", end="")
+                      f"최대 밀집도: {max_d:.2f}인/m² | "
+                      f"제외: {ignored}건 | "
+                      f"추론: {inference_ms:.1f}ms", end="")
 
                 if grid_result['alerts']:
                     print(f" | ⚠️ 경고 {len(grid_result['alerts'])}건")
@@ -131,7 +202,8 @@ def main():
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
     finally:
-        drone.release()
+        if drone is not None:
+            drone.release()
         if logger is not None:
             logger.close()
         cv2.destroyAllWindows()

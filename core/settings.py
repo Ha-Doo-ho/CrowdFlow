@@ -18,6 +18,12 @@ class AppSettings:
     low_confidence_threshold: float = 0.4
     low_confidence_min_level: int | None = 3
     calibration_path: str | None = None
+    predictive_risk_enabled: bool = True
+    prediction_horizon_seconds: float = 10.0
+    prediction_history_seconds: float = 15.0
+    prediction_min_history_seconds: float = 3.0
+    cumulative_risk_half_life_seconds: float = 30.0
+    cumulative_risk_threshold: float = 30.0
 
     @classmethod
     def load(cls, path):
@@ -48,6 +54,18 @@ class AppSettings:
         if self.low_confidence_min_level is not None:
             if not 1 <= self.low_confidence_min_level <= 5:
                 raise ValueError("low_confidence_min_level은 1~5 또는 null이어야 합니다.")
+        if self.prediction_horizon_seconds <= 0:
+            raise ValueError("prediction_horizon_seconds는 0보다 커야 합니다.")
+        if self.prediction_history_seconds <= 0:
+            raise ValueError("prediction_history_seconds는 0보다 커야 합니다.")
+        if self.prediction_min_history_seconds <= 0:
+            raise ValueError("prediction_min_history_seconds는 0보다 커야 합니다.")
+        if self.prediction_min_history_seconds > self.prediction_history_seconds:
+            raise ValueError("prediction_min_history_seconds는 prediction_history_seconds보다 작거나 같아야 합니다.")
+        if self.cumulative_risk_half_life_seconds <= 0:
+            raise ValueError("cumulative_risk_half_life_seconds는 0보다 커야 합니다.")
+        if not 0 <= self.cumulative_risk_threshold <= 100:
+            raise ValueError("cumulative_risk_threshold는 0~100 범위여야 합니다.")
 
         if self.person_classes is not None:
             if not all(isinstance(class_id, int) and class_id >= 0

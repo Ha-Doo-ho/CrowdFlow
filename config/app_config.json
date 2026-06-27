@@ -11,5 +11,11 @@
   "area_height": 10.0,
   "low_confidence_threshold": 0.4,
   "low_confidence_min_level": 2,
-  "calibration_path": null
+  "calibration_path": null,
+  "predictive_risk_enabled": true,
+  "prediction_horizon_seconds": 10.0,
+  "prediction_history_seconds": 15.0,
+  "prediction_min_history_seconds": 3.0,
+  "cumulative_risk_half_life_seconds": 30.0,
+  "cumulative_risk_threshold": 30.0
 }

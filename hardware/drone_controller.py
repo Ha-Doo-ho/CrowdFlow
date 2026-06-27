@@ -4,6 +4,11 @@ import cv2
 import time
 
 
+def tello_rgb_to_bgr(frame):
+    """DJITelloPy 프레임(RGB)을 OpenCV/탐지 파이프라인 기준(BGR)으로 맞춘다."""
+    return cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+
+
 class DroneCamera:
     def __init__(self, source='test_video.mp4'):
         """
@@ -84,7 +89,7 @@ class DroneCamera:
             # → main.py의 while 루프에서 호출할 때마다 그 순간의 최신 사진
             if frame is None or frame.size == 0:
                 return None
-            return frame
+            return tello_rgb_to_bgr(frame)
 
         elif self.mode == 'video':
             success, frame = self.cap.read()

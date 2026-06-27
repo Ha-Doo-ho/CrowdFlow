@@ -31,6 +31,11 @@ def is_real_video_frame(frame):
     )
 
 
+def tello_rgb_to_bgr(frame):
+    """DJITelloPy 프레임(RGB)을 OpenCV/탐지 파이프라인 기준(BGR)으로 맞춘다."""
+    return cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+
+
 def print_telemetry(tello):
     state = tello.get_current_state()
     if not state:
@@ -84,6 +89,7 @@ def main():
             frame = frame_reader.frame
 
             if is_real_video_frame(frame):
+                frame = tello_rgb_to_bgr(frame)
                 if not received_frame:
                     height, width = frame.shape[:2]
                     print(f"[Tello] 영상 수신 성공 | 해상도: {width}x{height}")

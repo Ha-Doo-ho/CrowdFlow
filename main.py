@@ -8,6 +8,7 @@ import numpy as np
 
 from core.detector import CrowdDetector
 from core.grid_calculator import GridCalculator
+from core.predictive_risk import PredictiveRiskTracker
 from core.result_publisher import save_latest_result
 from core.risk_clusterer import find_risk_clusters
 from core.settings import AppSettings
@@ -77,6 +78,7 @@ def analyze_frame(
     frame_number,
     source_name,
     calibration_mode,
+    predictive_tracker=None,
 ):
     started_at = time.perf_counter()
     detections, raw_result = detector.detect(frame)
@@ -84,6 +86,10 @@ def analyze_frame(
 
     grid_result = calculator.calculate(detections)
     grid_result["risk_clusters"] = find_risk_clusters(grid_result)
+    if predictive_tracker is not None:
+        grid_result["predicted_risk"] = predictive_tracker.update(grid_result)
+    else:
+        grid_result["predicted_risk"] = {"enabled": False}
     grid_result["metadata"] = {
         "frame_number": frame_number,
         "source": source_name,
@@ -122,6 +128,15 @@ def main():
             conf_threshold=settings.low_confidence_threshold,
             low_confidence_min_level=settings.low_confidence_min_level,
         )
+        predictive_tracker = None
+        if settings.predictive_risk_enabled:
+            predictive_tracker = PredictiveRiskTracker(
+                horizon_seconds=settings.prediction_horizon_seconds,
+                history_seconds=settings.prediction_history_seconds,
+                min_history_seconds=settings.prediction_min_history_seconds,
+                cumulative_half_life_seconds=settings.cumulative_risk_half_life_seconds,
+                cumulative_threshold=settings.cumulative_risk_threshold,
+            )
         logger = DataLogger(DB_PATH)
 
         test_frame = drone.get_frame()
@@ -150,6 +165,7 @@ def main():
             frame_count,
             str(settings.source),
             calibration_mode,
+            predictive_tracker,
         )
         publish_result(grid_result, logger)
         total = int(grid_result['count'].sum())
@@ -175,6 +191,7 @@ def main():
                     frame_count,
                     str(settings.source),
                     calibration_mode,
+                    predictive_tracker,
                 )
                 publish_result(grid_result, logger)
 

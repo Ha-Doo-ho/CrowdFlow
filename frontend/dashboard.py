@@ -39,6 +39,16 @@ def load_latest_result(json_path):
         data['level'] = np.array(data['level'])
         data['count'] = np.array(data['count'])
         data['avg_conf'] = np.array(data['avg_conf'])
+        predicted_risk = data.get("predicted_risk")
+        if isinstance(predicted_risk, dict):
+            for key in (
+                "predicted_grid",
+                "predicted_level",
+                "growth_grid",
+                "cumulative_score",
+            ):
+                if key in predicted_risk:
+                    predicted_risk[key] = np.array(predicted_risk[key])
         return data
     except (json.JSONDecodeError, KeyError):
         return None
@@ -85,6 +95,8 @@ def main():
         peak_density_metric = st.empty()
         avg_inference_metric = st.empty()
         ignored_metric = st.empty()
+        predicted_metric = st.empty()
+        cumulative_metric = st.empty()
 
     # ─── 메인 화면 (좌측) ───
     with col_main:
@@ -142,6 +154,24 @@ def main():
                         stats_logger = None
                     ignored_metric.info("DB 연결 대기 중...")
 
+            predicted_risk = result.get("predicted_risk", {})
+            if predicted_risk.get("enabled"):
+                horizon = float(predicted_risk.get("horizon_seconds", 10.0))
+                if predicted_risk.get("has_enough_history"):
+                    predicted_metric.metric(
+                        f"{horizon:.0f}초 예측 최대",
+                        f"{predicted_risk.get('max_predicted_density', 0):.2f} 인/m²",
+                    )
+                else:
+                    predicted_metric.info("예측 데이터 누적 중...")
+                cumulative_metric.metric(
+                    "누적 위험 점수",
+                    f"{predicted_risk.get('max_cumulative_score', 0):.0f}/100",
+                )
+            else:
+                predicted_metric.empty()
+                cumulative_metric.empty()
+
             # ─── 히트맵 표시 ───
             with heatmap_placeholder.container():
                 fig = renderer.render(result)
@@ -168,6 +198,31 @@ def main():
                     for alert in alerts[:5]:  # 최대 5개만 표시
                         st.warning(f"→ {alert['message']}")
 
+                if predicted_risk.get("enabled"):
+                    soon_cells = predicted_risk.get("soon_risk_cells", [])
+                    cumulative_cells = predicted_risk.get("cumulative_cells", [])
+                    horizon = float(predicted_risk.get("horizon_seconds", 10.0))
+
+                    if soon_cells:
+                        st.warning(
+                            f"⏱ {horizon:.0f}초 내 위험 가능 구역 "
+                            f"{len(soon_cells)}건"
+                        )
+                        for cell in soon_cells[:3]:
+                            st.info(
+                                f"→ [{cell['row']},{cell['col']}] "
+                                f"{cell['current_density']:.1f} → "
+                                f"{cell['predicted_density']:.1f}인/m² 예상"
+                            )
+
+                    if cumulative_cells:
+                        top_cell = cumulative_cells[0]
+                        st.info(
+                            "📌 반복 위험 구역 "
+                            f"[{top_cell['row']},{top_cell['col']}] "
+                            f"누적 점수 {top_cell['score']:.0f}/100"
+                        )
+
             # ─── 상세 정보 ───
             with info_placeholder.container():
                 total = int(result['count'].sum())
@@ -185,6 +240,18 @@ def main():
                     f"**추론:** {inference_ms:.1f}ms | "
                     f"**영역 밖 제외:** {ignored_count}건"
                 )
+
+                if predicted_risk.get("enabled"):
+                    horizon = float(predicted_risk.get("horizon_seconds", 10.0))
+                    if predicted_risk.get("has_enough_history"):
+                        st.markdown(
+                            f"**{horizon:.0f}초 예측 최대 밀집도:** "
+                            f"{predicted_risk.get('max_predicted_density', 0):.2f}인/m² | "
+                            f"**최대 증가율:** "
+                            f"{predicted_risk.get('max_growth_per_second', 0):.2f}인/m²/s"
+                        )
+                    else:
+                        st.caption("예측 위험도는 최근 프레임을 누적한 뒤 표시됩니다.")
 
                 if calibration_mode == "full_frame_fallback":
                     st.warning(

@@ -10,6 +10,8 @@ from matplotlib import font_manager
 import io
 import os
 
+import numpy as np
+
 
 def _configure_korean_font():
     font_path = r"C:\Windows\Fonts\malgun.ttf"
@@ -57,6 +59,7 @@ class HeatmapRenderer:
         count = grid_result['count']     # (rows, cols) 인원수
         alerts = grid_result.get('alerts', [])
         risk_clusters = grid_result.get('risk_clusters', [])
+        predicted_risk = grid_result.get('predicted_risk', {})
         grid_size = float(grid_result.get("grid_size", self.grid_size))
         area_width = float(grid_result.get("area_width", self.area_width))
         area_height = float(grid_result.get("area_height", self.area_height))
@@ -112,6 +115,7 @@ class HeatmapRenderer:
                     ax.add_patch(rect2)
 
         self._draw_risk_clusters(ax, risk_clusters)
+        self._draw_predicted_risk(ax, predicted_risk, grid_size)
 
         # ─── 범례 ───
         legend_elements = []
@@ -171,6 +175,63 @@ class HeatmapRenderer:
                 fontsize=8, fontweight='bold', color='white',
                 bbox={'facecolor': color, 'alpha': 0.9, 'pad': 2, 'edgecolor': 'none'},
                 zorder=7,
+            )
+
+    def _draw_predicted_risk(self, ax, predicted_risk, grid_size):
+        if not predicted_risk or not predicted_risk.get("enabled"):
+            return
+
+        cumulative_score = predicted_risk.get("cumulative_score")
+        if cumulative_score is not None:
+            cumulative_score = np.asarray(cumulative_score, dtype=float)
+            for cell in predicted_risk.get("cumulative_cells", [])[:5]:
+                row = int(cell.get("row", 0))
+                col = int(cell.get("col", 0))
+                if not (0 <= row < cumulative_score.shape[0]
+                        and 0 <= col < cumulative_score.shape[1]):
+                    continue
+                x = col * grid_size
+                y = row * grid_size
+                rect = patches.Rectangle(
+                    (x, y), grid_size, grid_size,
+                    linewidth=2, edgecolor='#2C3E50', facecolor='none',
+                    linestyle=':', zorder=8
+                )
+                ax.add_patch(rect)
+
+        if not predicted_risk.get("has_enough_history"):
+            return
+
+        horizon = float(predicted_risk.get("horizon_seconds", 10.0))
+        for cluster in predicted_risk.get("clusters", []):
+            bbox = cluster.get('bbox_m', {})
+            x1 = float(bbox.get('x1', 0.0))
+            y1 = float(bbox.get('y1', 0.0))
+            x2 = float(bbox.get('x2', x1))
+            y2 = float(bbox.get('y2', y1))
+            width = x2 - x1
+            height = y2 - y1
+            if width <= 0 or height <= 0:
+                continue
+
+            color = '#00A8E8'
+            rect = patches.Rectangle(
+                (x1, y1), width, height,
+                linewidth=2.5, edgecolor=color, facecolor='none',
+                linestyle='--', zorder=9
+            )
+            ax.add_patch(rect)
+
+            label = (
+                f"{horizon:.0f}초 예측 {cluster.get('id')} | "
+                f"{cluster.get('max_density', 0):.1f}인/m²"
+            )
+            ax.text(
+                x1 + 0.1, y2 - 0.15, label,
+                ha='left', va='bottom',
+                fontsize=8, fontweight='bold', color='white',
+                bbox={'facecolor': color, 'alpha': 0.9, 'pad': 2, 'edgecolor': 'none'},
+                zorder=10,
             )
 
     def render_to_bytes(self, grid_result):

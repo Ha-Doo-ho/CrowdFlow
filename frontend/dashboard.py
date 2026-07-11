@@ -23,6 +23,10 @@ from frontend.heatmap_renderer import HeatmapRenderer
 from frontend.data_logger import DataLogger
 
 
+HEATMAP_DISPLAY_WIDTH_PX = 640
+TREND_CHART_HEIGHT_PX = 220
+
+
 def load_latest_result(json_path):
     """
     main.py가 저장한 최신 분석 결과를 JSON에서 로드
@@ -174,10 +178,8 @@ def main():
 
             # ─── 히트맵 표시 ───
             with heatmap_placeholder.container():
-                fig = renderer.render(result)
-                st.pyplot(fig)
-                import matplotlib.pyplot as plt
-                plt.close(fig)
+                heatmap_image = renderer.render_to_bytes(result)
+                st.image(heatmap_image, width=HEATMAP_DISPLAY_WIDTH_PX)
 
             # ─── 경보 표시 ───
             with alert_placeholder.container():
@@ -276,7 +278,7 @@ def main():
 
             with chart_placeholder.container():
                 st.subheader("📈 밀집도 추세 (최근 30 프레임)")
-                st.line_chart(density_history)
+                st.line_chart(density_history, height=TREND_CHART_HEIGHT_PX)
 
         else:
             with heatmap_placeholder.container():

@@ -57,6 +57,12 @@ class PredictiveRiskTracker:
         grid_size = float(grid_result.get("grid_size", 2.0))
         area_width = float(grid_result.get("area_width", density.shape[1] * grid_size))
         area_height = float(grid_result.get("area_height", density.shape[0] * grid_size))
+        cell_areas = np.asarray(
+            grid_result.get("cell_areas", np.full(density.shape, grid_size ** 2)),
+            dtype=float,
+        )
+        x_edges = grid_result.get("x_edges")
+        y_edges = grid_result.get("y_edges")
 
         self._ensure_shape(density.shape)
         self._update_cumulative_score(density, now_seconds)
@@ -69,7 +75,7 @@ class PredictiveRiskTracker:
         predicted_level = np.vectorize(density_to_level)(predicted_grid).astype(int)
 
         if has_enough_history:
-            predicted_count = np.rint(predicted_grid * (grid_size ** 2)).astype(int)
+            predicted_count = np.rint(predicted_grid * cell_areas).astype(int)
             clusters = self._future_clusters(
                 predicted_grid,
                 predicted_count,
@@ -78,6 +84,9 @@ class PredictiveRiskTracker:
                 grid_size,
                 area_width,
                 area_height,
+                cell_areas,
+                x_edges,
+                y_edges,
             )
             soon_risk_cells = self._soon_risk_cells(density, predicted_grid, growth_grid)
         else:
@@ -150,6 +159,9 @@ class PredictiveRiskTracker:
         grid_size,
         area_width,
         area_height,
+        cell_areas,
+        x_edges,
+        y_edges,
     ):
         cluster_result = {
             "grid": predicted_grid,
@@ -157,7 +169,12 @@ class PredictiveRiskTracker:
             "grid_size": grid_size,
             "area_width": area_width,
             "area_height": area_height,
+            "cell_areas": cell_areas,
         }
+        if x_edges is not None:
+            cluster_result["x_edges"] = x_edges
+        if y_edges is not None:
+            cluster_result["y_edges"] = y_edges
         clusters = find_risk_clusters(cluster_result, min_density=self.risk_density_threshold)
         filtered = []
         for cluster in clusters:

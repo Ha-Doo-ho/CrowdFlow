@@ -15,6 +15,7 @@ class AppSettings:
     grid_size: float = 2.0
     area_width: float = 10.0
     area_height: float = 10.0
+    boundary_margin_m: float = 0.05
     low_confidence_threshold: float = 0.4
     low_confidence_min_level: int | None = 3
     calibration_path: str | None = None
@@ -49,6 +50,8 @@ class AppSettings:
             raise ValueError("analyze_every는 1 이상이어야 합니다.")
         if self.grid_size <= 0 or self.area_width <= 0 or self.area_height <= 0:
             raise ValueError("격자와 영역 크기는 0보다 커야 합니다.")
+        if self.boundary_margin_m < 0:
+            raise ValueError("boundary_margin_m must be greater than or equal to 0.")
         if not 0 <= self.low_confidence_threshold <= 1:
             raise ValueError("low_confidence_threshold는 0~1 범위여야 합니다.")
         if self.low_confidence_min_level is not None:

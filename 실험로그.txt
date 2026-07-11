@@ -1,0 +1,100 @@
+실험로그
+[Frame     1] counted:   1 | max density: 1.00/m2 | ignored: 0 | inference: 626.1ms
+[Frame    30] counted:   1 | max density: 1.00/m2 | ignored: 0 | inference: 453.5ms
+[Frame    60] counted:   1 | max density: 1.00/m2 | ignored: 0 | inference: 458.9ms
+[Frame    90] counted:   1 | max density: 1.00/m2 | ignored: 0 | inference: 333.4ms
+[Frame   120] counted:   1 | max density: 1.00/m2 | ignored: 0 | inference: 308.9ms
+[Frame   150] counted:   1 | max density: 1.00/m2 | ignored: 0 | inference: 387.7ms
+[Frame   180] counted:   1 | max density: 1.00/m2 | ignored: 0 | inference: 340.4ms
+[Frame   210] counted:   1 | max density: 1.00/m2 | ignored: 0 | inference: 423.6ms
+[Frame   240] counted:   1 | max density: 1.00/m2 | ignored: 0 | inference: 320.5ms
+[Frame   270] counted:   1 | max density: 1.00/m2 | ignored: 0 | inference: 423.1ms
+[Frame   300] counted:   1 | max density: 1.00/m2 | ignored: 0 | inference: 442.0ms
+[Frame   330] counted:   1 | max density: 1.00/m2 | ignored: 0 | inference: 455.7ms
+[Frame   360] counted:   1 | max density: 1.00/m2 | ignored: 0 | inference: 428.1ms
+[Frame   390] counted:   1 | max density: 1.00/m2 | ignored: 0 | inference: 362.9ms
+[Frame   420] counted:   1 | max density: 1.00/m2 | ignored: 0 | inference: 319.7ms
+[Frame   450] counted:   1 | max density: 1.00/m2 | ignored: 0 | inference: 356.5ms
+[Frame   480] counted:   1 | max density: 1.00/m2 | ignored: 0 | inference: 332.9ms
+[Frame   510] counted:   1 | max density: 1.00/m2 | ignored: 0 | inference: 370.6ms
+[Frame   540] counted:   1 | max density: 1.00/m2 | ignored: 0 | inference: 403.6ms
+[Frame   570] counted:   1 | max density: 1.00/m2 | ignored: 0 | inference: 458.1ms
+[Frame   600] counted:   1 | max density: 1.00/m2 | ignored: 0 | inference: 448.7ms
+[Frame   630] counted:   1 | max density: 1.00/m2 | ignored: 0 | inference: 501.4ms
+[Frame   660] counted:   1 | max density: 1.00/m2 | ignored: 0 | inference: 429.5ms
+[Frame   690] counted:   1 | max density: 1.00/m2 | ignored: 0 | inference: 507.2ms
+[Frame   720] counted:   1 | max density: 1.00/m2 | ignored: 0 | inference: 326.6ms
+[Frame   750] counted:   1 | max density: 1.00/m2 | ignored: 0 | inference: 413.7ms
+[Frame   780] counted:   1 | max density: 1.00/m2 | ignored: 0 | inference: 331.7ms
+[Frame   810] counted:   1 | max density: 1.00/m2 | ignored: 0 | inference: 400.8ms
+[Frame   840] counted:   1 | max density: 1.00/m2 | ignored: 0 | inference: 332.2ms
+[Frame   870] counted:   1 | max density: 1.00/m2 | ignored: 0 | inference: 385.8ms
+[Frame   900] counted:   1 | max density: 1.00/m2 | ignored: 0 | inference: 438.0ms
+[Frame   930] counted:   1 | max density: 1.00/m2 | ignored: 0 | inference: 515.9ms
+[Frame   960] counted:   1 | max density: 1.00/m2 | ignored: 0 | inference: 480.3ms
+[Frame   990] counted:   1 | max density: 1.00/m2 | ignored: 0 | inference: 525.7ms
+[Frame  1020] counted:   1 | max density: 1.00/m2 | ignored: 0 | inference: 465.6ms
+[Frame  1050] counted:   1 | max density: 1.00/m2 | ignored: 0 | inference: 382.1ms
+[Frame  1080] counted:   0 | max density: 0.00/m2 | ignored: 0 | inference: 352.3ms
+[Frame  1110] counted:   1 | max density: 1.00/m2 | ignored: 0 | inference: 441.0ms
+[Frame  1140] counted:   1 | max density: 1.00/m2 | ignored: 0 | inference: 368.6ms
+[Frame  1170] counted:   1 | max density: 1.00/m2 | ignored: 0 | inference: 385.1ms
+[Frame  1200] counted:   1 | max density: 1.00/m2 | ignored: 0 | inference: 350.1ms
+[Frame  1230] counted:   1 | max density: 1.00/m2 | ignored: 0 | inference: 571.0ms
+[Frame  1260] counted:   0 | max density: 0.00/m2 | ignored: 1 | inference: 487.8ms
+[Frame  1290] counted:   1 | max density: 1.00/m2 | ignored: 0 | inference: 476.9ms
+[Frame  1320] counted:   0 | max density: 0.00/m2 | ignored: 1 | inference: 521.0ms
+[Frame  1350] counted:   1 | max density: 1.00/m2 | ignored: 0 | inference: 949.6ms
+[Frame  1380] counted:   1 | max density: 1.00/m2 | ignored: 0 | inference: 425.7ms
+[Frame  1410] counted:   1 | max density: 1.00/m2 | ignored: 0 | inference: 765.8ms
+[Frame  1440] counted:   0 | max density: 0.00/m2 | ignored: 1 | inference: 559.8ms
+[Frame  1470] counted:   1 | max density: 1.00/m2 | ignored: 0 | inference: 556.8ms
+[Frame  1500] counted:   1 | max density: 1.00/m2 | ignored: 0 | inference: 530.4ms
+[Frame  1530] counted:   1 | max density: 1.00/m2 | ignored: 0 | inference: 620.4ms
+[Frame  1560] counted:   0 | max density: 0.00/m2 | ignored: 1 | inference: 580.6ms
+[Frame  1590] counted:   1 | max density: 1.00/m2 | ignored: 0 | inference: 378.2ms
+[Frame  1620] counted:   1 | max density: 1.00/m2 | ignored: 0 | inference: 399.1ms
+[Frame  1650] counted:   1 | max density: 1.00/m2 | ignored: 0 | inference: 397.3ms
+[Frame  1680] counted:   1 | max density: 1.00/m2 | ignored: 0 | inference: 467.6ms
+[Frame  1710] counted:   0 | max density: 0.00/m2 | ignored: 1 | inference: 425.9ms
+[Frame  1740] counted:   0 | max density: 0.00/m2 | ignored: 1 | inference: 543.4ms
+[Frame  1770] counted:   1 | max density: 1.00/m2 | ignored: 0 | inference: 503.6ms
+[Frame  1800] counted:   1 | max density: 1.00/m2 | ignored: 0 | inference: 641.7ms
+[Frame  1830] counted:   0 | max density: 0.00/m2 | ignored: 1 | inference: 600.0ms
+[Frame  1860] counted:   0 | max density: 0.00/m2 | ignored: 1 | inference: 403.8ms
+[Frame  1890] counted:   0 | max density: 0.00/m2 | ignored: 1 | inference: 537.7ms
+[Frame  1920] counted:   0 | max density: 0.00/m2 | ignored: 1 | inference: 399.9ms
+[Frame  1950] counted:   0 | max density: 0.00/m2 | ignored: 1 | inference: 451.1ms
+[Frame  1980] counted:   0 | max density: 0.00/m2 | ignored: 1 | inference: 361.9ms
+[Frame  2010] counted:   0 | max density: 0.00/m2 | ignored: 1 | inference: 518.7ms
+[Frame  2040] counted:   0 | max density: 0.00/m2 | ignored: 1 | inference: 520.2ms
+[Frame  2070] counted:   0 | max density: 0.00/m2 | ignored: 1 | inference: 592.5ms
+[Frame  2100] counted:   0 | max density: 0.00/m2 | ignored: 1 | inference: 545.7ms
+[Frame  2130] counted:   0 | max density: 0.00/m2 | ignored: 1 | inference: 418.5ms
+[Frame  2160] counted:   0 | max density: 0.00/m2 | ignored: 0 | inference: 376.7ms
+[Frame  2190] counted:   0 | max density: 0.00/m2 | ignored: 1 | inference: 368.0ms
+[Frame  2220] counted:   0 | max density: 0.00/m2 | ignored: 1 | inference: 464.8ms
+[Frame  2250] counted:   0 | max density: 0.00/m2 | ignored: 0 | inference: 357.5ms
+[Frame  2280] counted:   0 | max density: 0.00/m2 | ignored: 1 | inference: 493.2ms
+[Frame  2310] counted:   0 | max density: 0.00/m2 | ignored: 1 | inference: 445.5ms
+[Frame  2340] counted:   0 | max density: 0.00/m2 | ignored: 1 | inference: 524.6ms
+[영상] 파일 닫기 완료
+[DB] 연결 종료
+
+--------------------------------------------------------------------------------------------------------------------------------------------------------
+[6m x 4m 기준 실험 결과]
+- 영상: tello_flight_recording_20260707_144650.mp4
+- 캘리브레이션: config/calibration_6x4_002.json
+- boundary_margin_m: 0.15
+- area_width x area_height: 4m x 6m
+- grid_size: 1m
+
+검증 항목:
+1. 중앙 위치 IN 판정 확인
+2. LB/RB 하단 근처 IN 판정 확인
+3. LT/RT 상단 근처에서 노란 선보다 30~50cm 안쪽 IN 판정 확인
+4. 노란 선 바깥 OUT 판정 확인
+5. 동일 영상에서 counted: 1 안정 유지 확인
+
+판단:
+4m x 6m 실측 영역에서 Homography 기반 좌표 변환, IN/OUT 판정, 격자 카운팅 흐름이 정상 동작함을 확인하였다.

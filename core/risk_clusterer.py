@@ -19,6 +19,18 @@ def find_risk_clusters(grid_result, min_density=4.0):
     grid_size = float(grid_result.get("grid_size", 2.0))
     area_width = float(grid_result.get("area_width", density.shape[1] * grid_size))
     area_height = float(grid_result.get("area_height", density.shape[0] * grid_size))
+    x_edges = np.asarray(
+        grid_result.get("x_edges", _uniform_edges(density.shape[1], grid_size, area_width)),
+        dtype=float,
+    )
+    y_edges = np.asarray(
+        grid_result.get("y_edges", _uniform_edges(density.shape[0], grid_size, area_height)),
+        dtype=float,
+    )
+    cell_areas = np.asarray(
+        grid_result.get("cell_areas", _cell_areas_from_edges(x_edges, y_edges)),
+        dtype=float,
+    )
 
     rows, cols = density.shape
     candidates = density >= min_density
@@ -51,8 +63,8 @@ def find_risk_clusters(grid_result, min_density=4.0):
                     visited[next_row, next_col] = True
                     stack.append((next_row, next_col))
 
-            clusters.append(_build_cluster(cells, density, count, grid_size,
-                                           area_width, area_height))
+            clusters.append(_build_cluster(cells, density, count, x_edges, y_edges,
+                                           cell_areas))
 
     clusters.sort(
         key=lambda item: (
@@ -70,7 +82,18 @@ def find_risk_clusters(grid_result, min_density=4.0):
     return clusters
 
 
-def _build_cluster(cells, density, count, grid_size, area_width, area_height):
+def _uniform_edges(cell_count, grid_size, area_length):
+    edges = np.arange(cell_count + 1, dtype=float) * grid_size
+    if len(edges) and area_length < edges[-1]:
+        edges[-1] = area_length
+    return edges
+
+
+def _cell_areas_from_edges(x_edges, y_edges):
+    return np.outer(np.diff(y_edges), np.diff(x_edges))
+
+
+def _build_cluster(cells, density, count, x_edges, y_edges, cell_areas):
     rows = [row for row, _ in cells]
     cols = [col for _, col in cells]
     min_row, max_row = min(rows), max(rows)
@@ -81,13 +104,13 @@ def _build_cluster(cells, density, count, grid_size, area_width, area_height):
         "id": 0,
         "cells": [[int(row), int(col)] for row, col in sorted(cells)],
         "bbox_m": {
-            "x1": float(min_col * grid_size),
-            "y1": float(min_row * grid_size),
-            "x2": float(min((max_col + 1) * grid_size, area_width)),
-            "y2": float(min((max_row + 1) * grid_size, area_height)),
+            "x1": float(x_edges[min_col]),
+            "y1": float(y_edges[min_row]),
+            "x2": float(x_edges[max_col + 1]),
+            "y2": float(y_edges[max_row + 1]),
         },
         "total_count": int(sum(int(count[row, col]) for row, col in cells)),
         "max_density": max_density,
         "max_level": int(density_to_level(max_density)),
-        "area_m2": float(len(cells) * (grid_size ** 2)),
+        "area_m2": float(sum(float(cell_areas[row, col]) for row, col in cells)),
     }

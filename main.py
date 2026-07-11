@@ -1,9 +1,10 @@
+import argparse
+import json
 import os
 import time
 from pathlib import Path
 
 import cv2
-import json
 import numpy as np
 
 from core.detector import CrowdDetector
@@ -15,11 +16,29 @@ from core.settings import AppSettings
 from frontend.data_logger import DataLogger
 from hardware.drone_controller import DroneCamera
 
+#python main.py --config config/app_config_6x4.json
+#streamlit run frontend/dashboard.py
 ROOT = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH = os.path.join(ROOT, "config", "app_config.json")
-DATA_DIR = os.path.join(ROOT, 'data')
-LATEST_RESULT_PATH = os.path.join(DATA_DIR, 'latest_result.json')
-DB_PATH = os.path.join(DATA_DIR, 'crowdflow.db')
+DATA_DIR = os.path.join(ROOT, "data")
+LATEST_RESULT_PATH = os.path.join(DATA_DIR, "latest_result.json")
+DB_PATH = os.path.join(DATA_DIR, "crowdflow.db")
+WINDOW_NAME = "CrowdFlow AI Detection"
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Run CrowdFlow analysis.")
+    parser.add_argument(
+        "--config",
+        default=CONFIG_PATH,
+        help="Path to app config JSON. Defaults to config/app_config.json.",
+    )
+    parser.add_argument(
+        "--source",
+        default=None,
+        help="Optional video source override. Use this to test another video without editing JSON.",
+    )
+    return parser.parse_args()
 
 
 def publish_result(grid_result, logger):
@@ -45,14 +64,20 @@ def configure_homography(calculator, frame, calibration_path):
         resolved_path = resolve_path(calibration_path)
         with open(resolved_path, "r", encoding="utf-8") as calibration_file:
             calibration = json.load(calibration_file)
+        src_points = calibration.get("src_points", [])
+        dst_points = calibration.get("dst_points", [])
+        if len(src_points) != 4 or len(dst_points) != 4:
+            raise ValueError(
+                "Calibration file must contain exactly four src_points "
+                f"and four dst_points: {resolved_path}"
+            )
         calculator.set_homography(
-            calibration["src_points"],
-            calibration["dst_points"],
+            src_points,
+            dst_points,
         )
-        print(f"[Calibration] 실측 좌표 사용: {resolved_path}")
+        print(f"[Calibration] measured coordinates: {resolved_path}")
         return "measured"
 
-    # 캘리브레이션 전 개발용 fallback이다. 실제 밀집도 검증에는 사용하지 않는다.
     src = np.array(
         [[0, 0], [width, 0], [0, height], [width, height]],
         dtype=np.float32,
@@ -67,7 +92,7 @@ def configure_homography(calculator, frame, calibration_path):
         dtype=np.float32,
     )
     calculator.set_homography(src, dst)
-    print("[Calibration] 임시 전체 프레임 매핑 사용 — 실측 결과로 해석하면 안 됩니다.")
+    print("[Calibration] temporary full-frame mapping. Do not treat density as measured.")
     return "full_frame_fallback"
 
 
@@ -90,6 +115,7 @@ def analyze_frame(
         grid_result["predicted_risk"] = predictive_tracker.update(grid_result)
     else:
         grid_result["predicted_risk"] = {"enabled": False}
+
     grid_result["metadata"] = {
         "frame_number": frame_number,
         "source": source_name,
@@ -104,15 +130,152 @@ def analyze_frame(
     return grid_result, raw_result
 
 
-def main():
-    settings = AppSettings.load(CONFIG_PATH)
-    source = resolve_source(settings.source)
+def draw_calibration_boundary(annotated, src_points):
+    if src_points is None:
+        return
+
+    pts = np.asarray(src_points, dtype=np.int32)
+    if pts.shape != (4, 2):
+        return
+
+    polygon = np.array([pts[0], pts[1], pts[3], pts[2]], dtype=np.int32)
+    cv2.polylines(
+        annotated,
+        [polygon],
+        isClosed=True,
+        color=(0, 255, 255),
+        thickness=2,
+        lineType=cv2.LINE_AA,
+    )
+
+    labels = ("LT", "RT", "LB", "RB")
+    for label, (x, y) in zip(labels, pts):
+        cv2.circle(annotated, (int(x), int(y)), 5, (0, 255, 255), -1)
+        cv2.putText(
+            annotated,
+            label,
+            (int(x) + 8, int(y) - 8),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.55,
+            (0, 255, 255),
+            2,
+            cv2.LINE_AA,
+        )
+
+
+def draw_detection_debug(frame, grid_result, calibration_src_points=None):
+    annotated = frame.copy()
+    draw_calibration_boundary(annotated, calibration_src_points)
+
+    metadata = grid_result.get("metadata", {}) if grid_result else {}
+    frame_number = metadata.get("frame_number")
+    if frame_number is not None:
+        cv2.putText(
+            annotated,
+            f"last analysis frame: {frame_number}",
+            (15, 28),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.65,
+            (0, 255, 255),
+            2,
+            cv2.LINE_AA,
+        )
+
+    mapped_detections = grid_result.get("mapped_detections", [])
+    if not mapped_detections:
+        return annotated
+
+    for item in mapped_detections:
+        bbox = item.get("bbox", {})
+        x1 = int(bbox.get("x1", 0))
+        y1 = int(bbox.get("y1", 0))
+        x2 = int(bbox.get("x2", 0))
+        y2 = int(bbox.get("y2", 0))
+
+        counted = item.get("status") == "counted"
+        color = (0, 220, 0) if counted else (150, 150, 150)
+        label = "OUT"
+        if counted:
+            label = f"IN [{item.get('row')},{item.get('col')}]"
+        else:
+            foot_m = item.get("foot_m")
+            if isinstance(foot_m, list) and len(foot_m) == 2:
+                label = f"OUT ({foot_m[0]:.1f},{foot_m[1]:.1f}m)"
+
+        cv2.rectangle(annotated, (x1, y1), (x2, y2), color, 2)
+        foot = item.get("foot_pixel", [])
+        if len(foot) == 2:
+            fx, fy = int(round(float(foot[0]))), int(round(float(foot[1])))
+            cv2.circle(annotated, (fx, fy), 4, color, -1)
+        cv2.putText(
+            annotated,
+            label,
+            (x1, max(20, y1 - 6)),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.55,
+            color,
+            2,
+            cv2.LINE_AA,
+        )
+    return annotated
+
+
+def build_predictive_tracker(settings):
+    if not settings.predictive_risk_enabled:
+        return None
+    return PredictiveRiskTracker(
+        horizon_seconds=settings.prediction_horizon_seconds,
+        history_seconds=settings.prediction_history_seconds,
+        min_history_seconds=settings.prediction_min_history_seconds,
+        cumulative_half_life_seconds=settings.cumulative_risk_half_life_seconds,
+        cumulative_threshold=settings.cumulative_risk_threshold,
+    )
+
+
+def print_frame_summary(grid_result):
+    metadata = grid_result["metadata"]
+    total = int(grid_result["count"].sum())
+    max_density = float(grid_result["max_density"])
+    ignored = int(grid_result.get("ignored_count", 0))
+    inference_ms = float(metadata["inference_ms"])
+    frame_number = int(metadata["frame_number"])
+
+    print(
+        f"[Frame {frame_number:>5}] "
+        f"counted: {total:>3} | "
+        f"max density: {max_density:.2f}/m2 | "
+        f"ignored: {ignored} | "
+        f"inference: {inference_ms:.1f}ms",
+        end="",
+    )
+    alerts = grid_result.get("alerts", [])
+    if alerts:
+        print(f" | warnings: {len(alerts)}")
+        for alert in alerts:
+            print(f"    -> {alert['message']}")
+    else:
+        print()
+
+
+def main(config_path=CONFIG_PATH, source_override=None):
+    settings = AppSettings.load(config_path)
+    source_value = source_override if source_override is not None else settings.source
+    source = resolve_source(source_value)
     model_path = resolve_path(settings.model_path)
 
     drone = None
     logger = None
 
     try:
+        print(f"[Config] loaded: {config_path}")
+        print(f"[Config] source: {source_value}")
+        print(f"[Config] calibration_path: {settings.calibration_path}")
+        print(
+            "[Config] area/grid: "
+            f"{settings.area_width}m x {settings.area_height}m, "
+            f"grid {settings.grid_size}m"
+        )
+
         drone = DroneCamera(source)
         detector = CrowdDetector(
             model_path=model_path,
@@ -127,54 +290,44 @@ def main():
             area_height=settings.area_height,
             conf_threshold=settings.low_confidence_threshold,
             low_confidence_min_level=settings.low_confidence_min_level,
+            boundary_margin_m=settings.boundary_margin_m,
         )
-        predictive_tracker = None
-        if settings.predictive_risk_enabled:
-            predictive_tracker = PredictiveRiskTracker(
-                horizon_seconds=settings.prediction_horizon_seconds,
-                history_seconds=settings.prediction_history_seconds,
-                min_history_seconds=settings.prediction_min_history_seconds,
-                cumulative_half_life_seconds=settings.cumulative_risk_half_life_seconds,
-                cumulative_threshold=settings.cumulative_risk_threshold,
-            )
+        predictive_tracker = build_predictive_tracker(settings)
         logger = DataLogger(DB_PATH)
 
-        test_frame = drone.get_frame()
-        if test_frame is None:
-            print("첫 프레임을 가져오지 못했습니다. 영상 경로나 스트리밍 상태를 확인하세요.")
+        first_frame = drone.get_frame()
+        if first_frame is None:
+            print("[Video] Could not read the first frame. Check source path or stream.")
             return
 
-        h, w = test_frame.shape[:2]
-        print(f"영상 해상도: {w} x {h}")
+        height, width = first_frame.shape[:2]
+        print(f"[Video] resolution: {width} x {height}")
         calibration_mode = configure_homography(
             calculator,
-            test_frame,
+            first_frame,
             settings.calibration_path,
         )
 
         print("=" * 50)
-        print("CrowdFlow 관제 시스템 실행중... (종료: q키)")
+        print("CrowdFlow running. Press q in the video window to quit.")
         print("=" * 50)
 
         frame_count = 1
-
-        grid_result, raw_result = analyze_frame(
+        grid_result, _ = analyze_frame(
             detector,
             calculator,
-            test_frame,
+            first_frame,
             frame_count,
-            str(settings.source),
+            str(source_value),
             calibration_mode,
             predictive_tracker,
         )
         publish_result(grid_result, logger)
-        total = int(grid_result['count'].sum())
-        max_d = grid_result['max_density']
-        inference_ms = grid_result["metadata"]["inference_ms"]
-        print(f"[Frame {frame_count:>5}] 탐지: {total:>3}명 | "
-              f"최대 밀집도: {max_d:.2f}인/m² | 추론: {inference_ms:.1f}ms")
-        annotated = raw_result.plot()
-        cv2.imshow("CrowdFlow AI Detection", annotated)
+        print_frame_summary(grid_result)
+        cv2.imshow(
+            WINDOW_NAME,
+            draw_detection_debug(first_frame, grid_result, calculator.src_points),
+        )
 
         while True:
             frame = drone.get_frame()
@@ -182,41 +335,29 @@ def main():
                 break
 
             frame_count += 1
-
             if frame_count % settings.analyze_every == 0:
-                grid_result, raw_result = analyze_frame(
+                grid_result, _ = analyze_frame(
                     detector,
                     calculator,
                     frame,
                     frame_count,
-                    str(settings.source),
+                    str(source_value),
                     calibration_mode,
                     predictive_tracker,
                 )
                 publish_result(grid_result, logger)
+                print_frame_summary(grid_result)
+                cv2.imshow(
+                    WINDOW_NAME,
+                    draw_detection_debug(frame, grid_result, calculator.src_points),
+                )
+            else:
+                cv2.imshow(
+                    WINDOW_NAME,
+                    draw_detection_debug(frame, grid_result, calculator.src_points),
+                )
 
-                total = int(grid_result['count'].sum())
-                max_d = grid_result['max_density']
-                ignored = grid_result["ignored_count"]
-                inference_ms = grid_result["metadata"]["inference_ms"]
-                print(f"[Frame {frame_count:>5}] "
-                      f"탐지: {total:>3}명 | "
-                      f"최대 밀집도: {max_d:.2f}인/m² | "
-                      f"제외: {ignored}건 | "
-                      f"추론: {inference_ms:.1f}ms", end="")
-
-                if grid_result['alerts']:
-                    print(f" | ⚠️ 경고 {len(grid_result['alerts'])}건")
-                    for alert in grid_result['alerts']:
-                        print(f"    → {alert['message']}")
-                else:
-                    print()  # 줄바꿈
-
-            last_annotated = raw_result.plot()
-
-            cv2.imshow("CrowdFlow AI Detection", last_annotated)
-
-            if cv2.waitKey(1) & 0xFF == ord('q'):
+            if cv2.waitKey(1) & 0xFF == ord("q"):
                 break
     finally:
         if drone is not None:
@@ -224,8 +365,9 @@ def main():
         if logger is not None:
             logger.close()
         cv2.destroyAllWindows()
-        print("\n시스템 종료")
+        print("\nCrowdFlow stopped.")
 
 
-if __name__ == '__main__':
-    main()
+if __name__ == "__main__":
+    args = parse_args()
+    main(args.config, args.source)

@@ -1,0 +1,4 @@
+﻿frame_index,video_time_seconds,inference_ms,raw_detection_count,duplicate_boxes_removed,before_counted,after_counted,before_ignored,after_ignored,before_max_density,after_max_density,boundary_status_overrides
+0,0.0,606.983,2,0,2,2,0,0,1.0,1.0,0
+30,1.0,434.711,2,0,2,2,0,0,1.0,1.0,0
+60,2.0,485.592,2,0,2,2,0,0,1.0,1.0,0

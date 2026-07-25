@@ -1,5 +1,5 @@
 {
-  "source": "data/tello_recordings/tello_recording_20260630_142441.mp4",
+  "source": "data/tello_recordings/tello_flight_recording_20260712_083321.mp4",
   "model_path": "weights/yolo11l_crowdflow.pt",
   "model_type": "yolo",
   "imgsz": 640,

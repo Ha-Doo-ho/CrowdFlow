@@ -10,6 +10,13 @@
   "area_width": 7.85,
   "area_height": 10.0,
   "boundary_margin_m": 0.15,
+  "cross_class_dedup_enabled": true,
+  "dedup_iou_threshold": 0.65,
+  "boundary_stabilization_enabled": true,
+  "boundary_history_size": 3,
+  "boundary_majority_count": 2,
+  "boundary_stability_band_m": 0.5,
+  "boundary_track_max_missing": 2,
   "low_confidence_threshold": 0.4,
   "low_confidence_min_level": 2,
   "calibration_path": "config/calibration_7_85x10_003.json",
@@ -17,7 +24,6 @@
   "prediction_horizon_seconds": 10.0,
   "prediction_history_seconds": 15.0,
   "prediction_min_history_seconds": 3.0,
-  ,k
   "cumulative_risk_half_life_seconds": 30.0,
   "cumulative_risk_threshold": 30.0
 }

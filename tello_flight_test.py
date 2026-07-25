@@ -167,7 +167,7 @@ def build_parser():
     parser = argparse.ArgumentParser(
         description="Tello flight, hover, calibration frame capture, and recording test"
     )
-    parser.add_argument("--min-battery", type=int, default=30)
+    parser.add_argument("--min-battery", type=int, default=10)
     parser.add_argument("--step-cm", type=int, default=100)
     parser.add_argument("--move-cm", type=int, default=50)
     parser.add_argument("--max-height-cm", type=int, default=1000)

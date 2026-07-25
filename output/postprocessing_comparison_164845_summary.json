@@ -1,0 +1,22 @@
+{
+  "source": "E:\\CapstoneDesign\\data\\tello_recordings\\tello_flight_recording_20260711_164845.mp4",
+  "analyzed_frames": 630,
+  "analyze_every": 30,
+  "dedup_iou_threshold": 0.65,
+  "boundary_vote_rule": "2/3",
+  "boundary_stability_band_m": 0.5,
+  "duplicate_boxes_removed_total": 2,
+  "frames_with_duplicates": 2,
+  "frames_with_boundary_override": 2,
+  "frames_with_count_change": 4,
+  "before": {
+    "mean_counted": 2.7778,
+    "mean_ignored": 0.0508,
+    "mean_max_density": 1.2151
+  },
+  "after": {
+    "mean_counted": 2.7746,
+    "mean_ignored": 0.0508,
+    "mean_max_density": 1.2154
+  }
+}

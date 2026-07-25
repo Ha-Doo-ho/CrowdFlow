@@ -23,8 +23,84 @@ from frontend.heatmap_renderer import HeatmapRenderer
 from frontend.data_logger import DataLogger
 
 
-HEATMAP_DISPLAY_WIDTH_PX = 640
 TREND_CHART_HEIGHT_PX = 220
+
+
+LEVEL_LEGEND_HTML = """
+<div class="level-legend" aria-label="밀집도 단계 범례">
+  <div class="legend-item"><span class="legend-dot level-1"></span><b>1 안전</b><span>&lt; 2인/m²</span></div>
+  <div class="legend-item"><span class="legend-dot level-2"></span><b>2 주의</b><span>2~4인/m²</span></div>
+  <div class="legend-item"><span class="legend-dot level-3"></span><b>3 경고</b><span>4~6인/m²</span></div>
+  <div class="legend-item"><span class="legend-dot level-4"></span><b>4 위험</b><span>6~8인/m²</span></div>
+  <div class="legend-item"><span class="legend-dot level-5"></span><b>5 긴급</b><span>&gt; 8인/m²</span></div>
+</div>
+"""
+
+
+PAGE_STYLE = """
+<style>
+  .block-container {
+    max-width: 1120px;
+    padding-top: 1rem;
+    padding-bottom: 1.5rem;
+  }
+  h1 {
+    font-size: 1.8rem !important;
+    margin-bottom: 0.15rem !important;
+  }
+  [data-testid="stCaptionContainer"] {
+    margin-bottom: 0.35rem;
+  }
+  [data-testid="stMetric"] {
+    min-height: 74px;
+    padding: 0.55rem 0.65rem;
+    border: 1px solid rgba(128, 139, 154, 0.32);
+    border-radius: 6px;
+    background: rgba(35, 40, 49, 0.38);
+  }
+  [data-testid="stMetricLabel"] {
+    font-size: 0.76rem;
+    line-height: 1.2;
+  }
+  [data-testid="stMetricValue"] {
+    font-size: 1.18rem;
+    line-height: 1.25;
+  }
+  .level-legend {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 6px;
+    margin: 0.35rem 0 0.7rem;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    min-height: 34px;
+    padding: 5px 7px;
+    border: 1px solid rgba(128, 139, 154, 0.32);
+    border-radius: 4px;
+    font-size: 0.74rem;
+    white-space: nowrap;
+  }
+  .legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex: 0 0 10px;
+  }
+  .level-1 { background: #2ECC71; }
+  .level-2 { background: #F1C40F; }
+  .level-3 { background: #E67E22; }
+  .level-4 { background: #E74C3C; }
+  .level-5 { background: #8E44AD; }
+  @media (max-width: 900px) {
+    .level-legend { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .legend-item { white-space: normal; }
+  }
+</style>
+"""
 
 
 def load_latest_result(json_path):
@@ -66,8 +142,11 @@ def main():
         layout="wide"
     )
 
-    st.title("🚁 CrowdFlow 실시간 밀집도 관제 시스템")
+    st.markdown(PAGE_STYLE, unsafe_allow_html=True)
+
+    st.title("CrowdFlow 실시간 밀집도 관제 시스템")
     st.caption("드론 조감 영상 기반 군중 밀집도 정량 측정 및 위험 구역 시각화")
+    st.markdown(LEVEL_LEGEND_HTML, unsafe_allow_html=True)
 
     # ─── 모듈 초기화 ───
     renderer = HeatmapRenderer()
@@ -76,48 +155,23 @@ def main():
     # JSON 경로 (main.py가 저장하는 파일)
     json_path = os.path.join(PROJECT_ROOT, 'data', 'latest_result.json')
 
-    # ─── 레이아웃 ───
-    col_main, col_side = st.columns([3, 1])
+    # ─── 상단 요약 지표 ───
+    metrics_placeholder = st.empty()
 
-    # ─── 사이드바 (우측) ───
-    with col_side:
-        st.subheader("📊 현재 상태")
+    # ─── 메인 화면 ───
+    col_heatmap, col_status = st.columns([1.7, 1], gap="small")
 
-        # Level 설명
-        st.markdown("""
-        | Level | 상태 | 밀집도 |
-        |-------|------|--------|
-        | 🟢 1 | 안전 | < 2인/m² |
-        | 🟡 2 | 주의 | 2~4인/m² |
-        | 🟠 3 | 경고 | 4~6인/m² |
-        | 🔴 4 | 위험 | 6~8인/m² |
-        | 🟣 5 | 긴급 | > 8인/m² |
-        """)
-
-        total_frames_metric = st.empty()
-        total_alerts_metric = st.empty()
-        peak_density_metric = st.empty()
-        avg_inference_metric = st.empty()
-        ignored_metric = st.empty()
-        predicted_metric = st.empty()
-        cumulative_metric = st.empty()
-
-    # ─── 메인 화면 (좌측) ───
-    with col_main:
-        # 히트맵 표시 영역
+    with col_heatmap:
         heatmap_placeholder = st.empty()
 
-        # 경보 표시 영역
-        alert_placeholder = st.empty()
+    with col_status:
+        status_placeholder = st.empty()
 
-        # 상세 정보 영역
+        alert_placeholder = st.empty()
         info_placeholder = st.empty()
 
-        # 추세 차트 영역
+    with st.expander("밀집도 추세와 상세 기록", expanded=False):
         chart_placeholder = st.empty()
-
-    # ─── 실시간 갱신 루프 ───
-    st.info("🔄 main.py 실행 후 자동으로 데이터가 표시됩니다. (1초 간격 갱신)")
 
     density_history = []
     last_timestamp = None
@@ -127,65 +181,76 @@ def main():
         result = load_latest_result(json_path)
 
         if result is not None:
+            stats = {
+                "total_frames": 0,
+                "total_alerts": 0,
+                "peak_density": 0.0,
+                "ignored_detections": 0,
+                "avg_inference_ms": 0.0,
+            }
             if os.path.exists(db_path):
                 try:
                     if stats_logger is None:
                         stats_logger = DataLogger(db_path, verbose=False)
                     stats = stats_logger.get_stats()
-                    total_frames_metric.metric(
-                        "총 분석 프레임",
-                        stats["total_frames"],
-                    )
-                    total_alerts_metric.metric(
-                        "총 경고 발생",
-                        stats["total_alerts"],
-                    )
-                    peak_density_metric.metric(
-                        "최대 밀집도",
-                        f"{stats['peak_density']:.2f} 인/m²",
-                    )
-                    avg_inference_metric.metric(
-                        "평균 추론시간",
-                        f"{stats['avg_inference_ms']:.1f} ms",
-                    )
-                    ignored_metric.metric(
-                        "영역 밖 제외 탐지",
-                        stats["ignored_detections"],
-                    )
                 except sqlite3.Error:
                     if stats_logger is not None:
                         stats_logger.close()
                         stats_logger = None
-                    ignored_metric.info("DB 연결 대기 중...")
 
             predicted_risk = result.get("predicted_risk", {})
-            if predicted_risk.get("enabled"):
-                horizon = float(predicted_risk.get("horizon_seconds", 10.0))
-                if predicted_risk.get("has_enough_history"):
-                    predicted_metric.metric(
-                        f"{horizon:.0f}초 예측 최대",
-                        f"{predicted_risk.get('max_predicted_density', 0):.2f} 인/m²",
-                    )
-                else:
-                    predicted_metric.info("예측 데이터 누적 중...")
-                cumulative_metric.metric(
-                    "누적 위험 점수",
-                    f"{predicted_risk.get('max_cumulative_score', 0):.0f}/100",
+            metadata = result.get("metadata", {})
+            current_total = int(result["count"].sum())
+            current_ignored = int(result.get("ignored_count", 0))
+            inference_ms = float(metadata.get("inference_ms", 0))
+            horizon = float(predicted_risk.get("horizon_seconds", 10.0))
+            if predicted_risk.get("enabled") and predicted_risk.get("has_enough_history"):
+                predicted_value = (
+                    f"{predicted_risk.get('max_predicted_density', 0):.2f} 인/m²"
                 )
+            elif predicted_risk.get("enabled"):
+                predicted_value = "누적 중"
             else:
-                predicted_metric.empty()
-                cumulative_metric.empty()
+                predicted_value = "사용 안 함"
+            cumulative_value = (
+                f"{predicted_risk.get('max_cumulative_score', 0):.0f}/100"
+                if predicted_risk.get("enabled") else "-"
+            )
+
+            with metrics_placeholder.container():
+                current_metrics = st.columns(6, gap="small")
+                current_metrics[0].metric("현재 탐지", f"{current_total}명")
+                current_metrics[1].metric(
+                    "현재 최대 밀집도",
+                    f"{result['max_density']:.2f} 인/m²",
+                )
+                current_metrics[2].metric("현재 추론", f"{inference_ms:.1f} ms")
+                current_metrics[3].metric("현재 영역 밖 제외", current_ignored)
+                current_metrics[4].metric(f"{horizon:.0f}초 예측 최대", predicted_value)
+                current_metrics[5].metric("누적 위험 점수", cumulative_value)
+
+                history_metrics = st.columns(4, gap="small")
+                history_metrics[0].metric("누적 분석 프레임", stats["total_frames"])
+                history_metrics[1].metric("누적 경고", stats["total_alerts"])
+                history_metrics[2].metric(
+                    "역대 최대 밀집도",
+                    f"{stats['peak_density']:.2f} 인/m²",
+                )
+                history_metrics[3].metric(
+                    "누적 영역 밖 제외",
+                    stats["ignored_detections"],
+                )
 
             # ─── 히트맵 표시 ───
             with heatmap_placeholder.container():
                 heatmap_image = renderer.render_to_bytes(result)
-                st.image(heatmap_image, width=HEATMAP_DISPLAY_WIDTH_PX)
+                st.image(heatmap_image, use_container_width=True)
 
-            # ─── 경보 표시 ───
-            with alert_placeholder.container():
-                alerts = result.get('alerts', [])
-                max_level = int(result.get("max_level", result['level'].max()))
+            alerts = result.get('alerts', [])
+            max_level = int(result.get("max_level", result['level'].max()))
 
+            # ─── 현재 상태 ───
+            with status_placeholder.container():
                 if max_level >= 4:
                     st.error(f"🚨 긴급 경보! 최대 밀집도: {result['max_density']:.2f}인/m² | 경고 {len(alerts)}건")
                 elif max_level >= 3:
@@ -195,9 +260,11 @@ def main():
                 else:
                     st.success(f"✅ 안전 | 최대 밀집도: {result['max_density']:.2f}인/m²")
 
+            # ─── 경보 표시 ───
+            with alert_placeholder.container():
                 # 개별 경고 표시
                 if alerts:
-                    for alert in alerts[:5]:  # 최대 5개만 표시
+                    for alert in alerts[:3]:
                         st.warning(f"→ {alert['message']}")
 
                 if predicted_risk.get("enabled"):
@@ -210,7 +277,7 @@ def main():
                             f"⏱ {horizon:.0f}초 내 위험 가능 구역 "
                             f"{len(soon_cells)}건"
                         )
-                        for cell in soon_cells[:3]:
+                        for cell in soon_cells[:2]:
                             st.info(
                                 f"→ [{cell['row']},{cell['col']}] "
                                 f"{cell['current_density']:.1f} → "
@@ -227,29 +294,21 @@ def main():
 
             # ─── 상세 정보 ───
             with info_placeholder.container():
-                total = int(result['count'].sum())
-                metadata = result.get("metadata", {})
                 calibration_mode = metadata.get("calibration_mode", "unknown")
                 model_name = metadata.get("model_name", "unknown")
-                inference_ms = metadata.get("inference_ms", 0)
-                ignored_count = int(result.get("ignored_count", 0))
 
-                st.markdown(f"**시각:** {result['timestamp']} | "
-                            f"**총 탐지:** {total}명 | "
-                            f"**최대 밀집도:** {result['max_density']:.2f}인/m²")
+                st.markdown("#### 현재 프레임")
+                st.caption(result['timestamp'])
                 st.markdown(
-                    f"**모델:** {model_name} | "
-                    f"**추론:** {inference_ms:.1f}ms | "
-                    f"**영역 밖 제외:** {ignored_count}건"
+                    f"**모델** {model_name}  \n"
+                    f"**탐지** {current_total}명  \n"
+                    f"**영역 밖 제외** {current_ignored}건"
                 )
 
                 if predicted_risk.get("enabled"):
-                    horizon = float(predicted_risk.get("horizon_seconds", 10.0))
                     if predicted_risk.get("has_enough_history"):
                         st.markdown(
-                            f"**{horizon:.0f}초 예측 최대 밀집도:** "
-                            f"{predicted_risk.get('max_predicted_density', 0):.2f}인/m² | "
-                            f"**최대 증가율:** "
+                            f"**최대 증가율** "
                             f"{predicted_risk.get('max_growth_per_second', 0):.2f}인/m²/s"
                         )
                     else:

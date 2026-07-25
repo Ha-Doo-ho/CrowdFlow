@@ -3,6 +3,8 @@ from pathlib import Path
 from ultralytics import RTDETR
 from ultralytics import YOLO
 
+from core.detection_postprocessor import suppress_cross_class_duplicates
+
 
 class CrowdDetector:
     HUMAN_CLASS_NAMES = {"person", "pedestrian", "people"}
@@ -14,11 +16,23 @@ class CrowdDetector:
         conf=0.1,
         person_classes=None,
         model_type="auto",
+        cross_class_dedup_enabled=True,
+        dedup_iou_threshold=0.65,
     ):
         self.model_path = str(model_path)
         self.imgsz = imgsz
         self.conf = conf
         self.model_type = self._resolve_model_type(model_type)
+        self.cross_class_dedup_enabled = bool(cross_class_dedup_enabled)
+        self.dedup_iou_threshold = float(dedup_iou_threshold)
+        if not 0 <= self.dedup_iou_threshold <= 1:
+            raise ValueError("dedup_iou_threshold must be in the range 0~1.")
+
+        self.last_postprocess_stats = {
+            "raw_detection_count": 0,
+            "deduplicated_detection_count": 0,
+            "duplicate_boxes_removed": 0,
+        }
 
         if self.model_type == "rtdetr":
             self.model = RTDETR(model_path)
@@ -29,7 +43,7 @@ class CrowdDetector:
 
     def _resolve_model_type(self, model_type):
         if model_type not in {"auto", "yolo", "rtdetr"}:
-            raise ValueError("model_type은 auto, yolo, rtdetr 중 하나여야 합니다.")
+            raise ValueError("model_type must be auto, yolo, or rtdetr.")
         if model_type != "auto":
             return model_type
 
@@ -65,11 +79,11 @@ class CrowdDetector:
 
     def detect(self, frame):
         """
-        입력: BGR numpy array (H, W, 3)
-        출력: 사람 탐지 목록과 Ultralytics 원본 결과
+        Input: BGR numpy array with shape (H, W, 3).
+        Output: filtered human detections and the original Ultralytics result.
         """
         if frame is None or frame.size == 0:
-            raise ValueError("탐지할 프레임이 비어 있습니다.")
+            raise ValueError("The detection frame is empty.")
 
         predict_args = {
             "imgsz": self.imgsz,
@@ -80,20 +94,34 @@ class CrowdDetector:
             predict_args["classes"] = self.person_classes
 
         results = self.model(frame, **predict_args)
-        detections = []
+        raw_detections = []
 
         for box in results[0].boxes:
             x1, y1, x2, y2 = box.xyxy[0].tolist()
-            conf = box.conf[0].item()
+            confidence = box.conf[0].item()
             class_id = int(box.cls[0].item())
-            detections.append({
+            raw_detections.append({
                 "x1": int(x1),
                 "y1": int(y1),
                 "x2": int(x2),
                 "y2": int(y2),
-                "conf": conf,
+                "conf": confidence,
                 "class_id": class_id,
                 "class_name": self._class_name(class_id),
             })
 
+        if self.cross_class_dedup_enabled:
+            detections, stats = suppress_cross_class_duplicates(
+                raw_detections,
+                iou_threshold=self.dedup_iou_threshold,
+            )
+        else:
+            detections = raw_detections
+            stats = {
+                "raw_detection_count": len(raw_detections),
+                "deduplicated_detection_count": len(raw_detections),
+                "duplicate_boxes_removed": 0,
+            }
+
+        self.last_postprocess_stats = stats
         return detections, results[0]

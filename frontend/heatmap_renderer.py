@@ -110,16 +110,6 @@ class HeatmapRenderer:
         self._draw_risk_clusters(ax, risk_clusters)
         self._draw_predicted_risk(ax, predicted_risk, grid_size, x_edges, y_edges)
 
-        legend_elements = [
-            patches.Patch(
-                facecolor=self.level_colors[lv],
-                edgecolor="gray",
-                label=f"Level {lv}: {self.level_names[lv]}",
-            )
-            for lv in [1, 2, 3, 4, 5]
-        ]
-        ax.legend(handles=legend_elements, loc="upper right", fontsize=8)
-
         plt.tight_layout()
         return fig
 

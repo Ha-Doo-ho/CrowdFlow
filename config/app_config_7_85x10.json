@@ -1,5 +1,5 @@
 {
-  "source": "data/tello_recordings/replace_with_7_85x10_recording.mp4",
+  "source": "data/tello_recordings/tello_flight_recording_20260711_164845.mp4",
   "model_path": "weights/yolo11l_crowdflow.pt",
   "model_type": "yolo",
   "imgsz": 640,
@@ -19,7 +19,7 @@
   "boundary_track_max_missing": 2,
   "low_confidence_threshold": 0.4,
   "low_confidence_min_level": 2,
-  "calibration_path": "config/calibration_7_85x10_003.json",
+  "calibration_path": "config/calibration_7_85x10.json",
   "predictive_risk_enabled": true,
   "prediction_horizon_seconds": 10.0,
   "prediction_history_seconds": 15.0,

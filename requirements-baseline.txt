@@ -1,0 +1,8 @@
+av==17.1.0
+djitellopy==2.5.0
+matplotlib==3.10.8
+numpy==2.4.2
+opencv-python==4.13.0.92
+streamlit==1.57.0
+ultralytics==8.4.42
+pytest==9.1.1

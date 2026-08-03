@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "baseline_id": "crowdflow-7_85x10-yolo11-20260803",
+  "frozen_at": "2026-08-03",
+  "primary_config": "config/app_config.json",
+  "config_alias": "config/app_config_7_85x10.json",
+  "primary_calibration": "config/calibration_7_85x10.json",
+  "primary_model": "weights/yolo11l_crowdflow.pt",
+  "support_model": "weights/rtdetr_l.pt",
+  "default_video": "data/tello_recordings/tello_flight_recording_20260711_164845.mp4",
+  "measured_area_m": {
+    "width": 7.85,
+    "height": 10.0
+  },
+  "representative_videos": [
+    {
+      "path": "data/tello_recordings/tello_flight_recording_20260711_123722.mp4",
+      "purpose": "single-person center, lower/upper boundary, and outside-area validation",
+      "width": 960,
+      "height": 720,
+      "fps": 30.0,
+      "frames": 7729,
+      "duration_seconds": 257.633
+    },
+    {
+      "path": "data/tello_recordings/tello_flight_recording_20260711_155226.mp4",
+      "purpose": "three-person distributed/dense placement and 2-IN plus 1-OUT validation",
+      "width": 960,
+      "height": 720,
+      "fps": 30.0,
+      "frames": 4734,
+      "duration_seconds": 157.8
+    },
+    {
+      "path": "data/tello_recordings/tello_flight_recording_20260711_164845.mp4",
+      "purpose": "two-to-three-person transition, model comparison, and postprocessing regression validation",
+      "width": 960,
+      "height": 720,
+      "fps": 30.0,
+      "frames": 18881,
+      "duration_seconds": 629.367
+    }
+  ],
+  "tested_environment": {
+    "python": "3.13.12",
+    "packages": {
+      "av": "17.1.0",
+      "djitellopy": "2.5.0",
+      "matplotlib": "3.10.8",
+      "numpy": "2.4.2",
+      "opencv-python": "4.13.0.92",
+      "streamlit": "1.57.0",
+      "ultralytics": "8.4.42",
+      "pytest": "9.1.1"
+    }
+  },
+  "sha256": {
+    "config/app_config.json": "A875DECBC7416F68EE41DB05F5E86AD78657E2877745731B99C2DD92C16D8CC5",
+    "config/app_config_7_85x10.json": "A875DECBC7416F68EE41DB05F5E86AD78657E2877745731B99C2DD92C16D8CC5",
+    "config/calibration_7_85x10.json": "4B8E4B20B9B7E19083888B4AA462440AE0AFCC487AD1E51018F5334EECE5A7B5",
+    "weights/yolo11l_crowdflow.pt": "B0CE802698DB88BA0FEEAB01D5E154FCEE5DC1148D0B4D7589D6BAE7D394A270",
+    "weights/rtdetr_l.pt": "71C954ED768E088D725CADF9ED4B3D6D7AFD28D3C56A7FE464F51EF6789516EF",
+    "data/tello_recordings/tello_flight_recording_20260711_123722.mp4": "68AA3C9A4C40689FA47CBD22E2F575E09C9157E692F2C0583FB79C2C33F0E976",
+    "data/tello_recordings/tello_flight_recording_20260711_155226.mp4": "C90746BC26526AB49E98658332E12B34FFFEBA1363554F421A6826CB4BE189E5",
+    "data/tello_recordings/tello_flight_recording_20260711_164845.mp4": "86EBAA9E66DE79D380B2DDECECA6476024D552CF54711473C764F72B4EB51BBA"
+  }
+}

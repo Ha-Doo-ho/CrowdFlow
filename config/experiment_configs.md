@@ -1,42 +1,43 @@
-# CrowdFlow experiment config guide
+# CrowdFlow experiment configuration guide
 
-## 6m x 4m field test
+## Frozen final baseline: 7.85m x 10m
 
-Use this when the measured field is width 4m and height 6m in the clicked point order.
+Use this setup for final reports, regression tests, dashboard captures, and
+poster evidence.
 
-1. Save a calibration frame from the same drone position used for analysis.
-2. Create calibration:
-
-```powershell
-python calibrate_from_image.py data/calibration_frames/<frame>.jpg --area-width 4 --area-height 6 --out config/calibration_6x4.json --preview output/calibration_preview_6x4.jpg
+```text
+Config:      config/app_config.json
+Alias:       config/app_config_7_85x10.json
+Calibration: config/calibration_7_85x10.json
+Model:       weights/yolo11l_crowdflow.pt
+Area:        7.85m x 10.0m
+Grid:        1.0m
+Margin:      0.15m
 ```
 
-3. Run analysis:
+Run the frozen default video:
 
 ```powershell
-python main.py --config config/app_config_6x4.json
+python verify_baseline.py --skip-hash
+python main.py
 ```
 
-## 10m x 10m field test
-
-Use this only after placing actual 10m x 10m reference points and creating a new calibration file.
+Run a different representative video without editing JSON:
 
 ```powershell
-python calibrate_from_image.py data/calibration_frames/<frame>.jpg --area-width 10 --area-height 10 --out config/calibration_10x10.json --preview output/calibration_preview_10x10.jpg
-python main.py --config config/app_config_10x10.json
+python main.py --config config/app_config.json --source data/tello_recordings/<recording>.mp4
 ```
 
-## 7.85m x 10m field test
+Representative recordings:
 
-Use this when the measured field width is exactly 7.85m and height is 10m.
-The grid size can stay at 1m; the last column is treated as a 0.85m-wide partial cell.
+1. `tello_flight_recording_20260711_123722.mp4`: single-person position test
+2. `tello_flight_recording_20260711_155226.mp4`: three-person density test
+3. `tello_flight_recording_20260711_164845.mp4`: transition/regression test
 
-```powershell
-python calibrate_from_image.py data/calibration_frames/<frame>.jpg --area-width 7.85 --area-height 10 --out config/calibration_7_85x10.json --preview output/calibration_preview_7_85x10.jpg
-python main.py --config config/app_config_7_85x10.json --source data/tello_recordings/<recording>.mp4
-```
+The numbered calibration files are archived candidates. The final baseline
+uses only `config/calibration_7_85x10.json`.
 
-## Point order
+## Calibration point order
 
 Click the four reference points in this exact order:
 
@@ -45,8 +46,43 @@ Click the four reference points in this exact order:
 3. left_bottom
 4. right_bottom
 
-## Important
+The calibration frame and analyzed recording must come from the same drone
+position, height, and camera angle.
 
-- Do not reuse indoor calibration for field tests.
-- If the drone position, height, or camera angle changes, create calibration again.
-- If the field is width 6m and height 4m instead of width 4m and height 6m, swap the values in both `app_config_6x4.json` and the calibration command.
+## Creating a candidate calibration
+
+Do not overwrite the frozen calibration while experimenting.
+
+```powershell
+python calibrate_from_image.py data/calibration_frames/<frame>.jpg --area-width 7.85 --area-height 10 --out config/calibration_7_85x10_candidate.json --preview output/calibration_preview_7_85x10_candidate.jpg
+```
+
+After validation, update the manifest and its SHA-256 only when the team has
+explicitly approved a new baseline.
+
+## Historical configurations
+
+### Indoor 1m x 3m
+
+```powershell
+python main.py --config config/app_config_indoor_1x3.json
+```
+
+This is retained for indoor reference only.
+
+### Outdoor 4m x 6m
+
+```powershell
+python main.py --config config/app_config_6x4.json
+```
+
+This is a completed preliminary field test, not the final poster baseline.
+
+### 10m x 10m candidate
+
+```powershell
+python main.py --config config/app_config_10x10.json
+```
+
+This was an initial target. It is not the final baseline because the Tello
+camera angle and motion produced larger projection uncertainty.
